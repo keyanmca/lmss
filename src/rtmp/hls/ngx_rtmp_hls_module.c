@@ -38,7 +38,6 @@ static ngx_int_t ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 static void ngx_rtmp_hls_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher);
 static ngx_rtmp_hls_stream_t ** ngx_rtmp_hls_get_stream(ngx_rtmp_session_t *s, u_char *name, int create);
 static ngx_int_t ngx_rtmp_http_hls_play_local(ngx_http_request_t *r, ngx_str_t *stream_name);
-static ngx_int_t ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish);
 static ngx_int_t ngx_rtmp_http_hls_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_rtmp_http_hls_init(ngx_conf_t *cf);
 static u_char *  ngx_rtmp_hls_log_error(ngx_log_t *log, u_char *buf, size_t len);
@@ -520,6 +519,8 @@ ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
     const char                     *sep;
 	ngx_int_t                       rc;
 	u_char                         *dot;
+	ngx_chain_t                     out;
+	ngx_int_t                       rc, open;
 
 
     hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
@@ -622,14 +623,27 @@ ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
 			ss = pctx->session;
 			r  = ss->rdata;
 
-			rc = ngx_rtmp_hls_send_response(r, 0);
-
 			ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                      "ngx_rtmp_hls_write_playlist send fragments rc: %d", rc);
+                      "ngx_rtmp_hls_write_playlist send m3u8");
 
-			if (rc == NGX_OK || rc == NGX_AGAIN) {
-				pctx = ngx_rtmp_hls_delink_stream(s);
-				continue;
+			ngx_memzero(&out, sizeof(out));
+			open = ngx_rtmp_hls_open_file(r, out);
+			if (open == NGX_OK) {
+				rc = ngx_http_output_filter(r, &out);
+				if (rc == NGX_OK) {
+					pctx = ngx_rtmp_hls_delink_stream(s);
+					continue;
+				} else if (rc == NGX_AGAIN) {
+					pctx = ngx_rtmp_hls_delink_stream(s);
+					ngx_rtmp_hls_set_write_handler(r);
+					continue;
+				} else {
+					ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                    		"ngx_rtmp_hls_write_playlist output failed, but why?");
+				}
+			} else {
+				ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                      	"ngx_rtmp_hls_write_playlist open file failed");
 			}
 
 			pctx = pctx->next;
@@ -1438,7 +1452,7 @@ next:
 
 
 static ngx_int_t
-ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish)
+ngx_rtmp_hls_open_file(ngx_http_request_t *r, ngx_chain_t *out)
 {
 	u_char					  *last;
 	off_t					   start, len;
@@ -1448,7 +1462,6 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish)
 	ngx_str_t				   path;
 	ngx_log_t				  *log;
 	ngx_buf_t				  *b;
-	ngx_chain_t 			   out;
 	ngx_open_file_info_t	   of;
 	ngx_http_core_loc_conf_t  *clcf;
 	ngx_rtmp_session_t        *s;
@@ -1462,16 +1475,12 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish)
 		return NGX_ERROR;
 	}
 
-	if (r->out != NULL) {
-		goto next;
-	}
-
 	log = r->connection->log;
 
 	path.len = last - path.data;
 
 	ngx_log_error(NGX_LOG_INFO, log, 0,
-				   "http hls filename: \"%V\"", &path);
+				   "http hls open filename: \"%V\"", &path);
 
 	clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
 
@@ -1544,7 +1553,7 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish)
 	start = 0;
 	len = of.size;
 
-	log->action = "sending hls to client";
+	log->action = "sending hls file to client";
 
 	r->headers_out.status = NGX_HTTP_OK;
 	r->headers_out.content_length_n = len;
@@ -1571,7 +1580,7 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish)
 	r->allow_ranges = 1;
 
 	if (!r->header_sent) {
-		rc = ngx_http_send_header(r);
+		ngx_http_send_header(r);
 	}
 
 	b->file_pos = start;
@@ -1586,31 +1595,10 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish)
 	b->file->log = log;
 	b->file->directio = of.is_directio;
 
-	out.buf = b;
-	out.next = NULL;
+	out->buf = b;
+	out->next = NULL;
 
-	rc = ngx_http_output_filter(r, &out);
-	if (finish) {
-		return rc;
-	} else {
-		if (rc == NGX_AGAIN) {
-			ngx_rtmp_hls_set_write_handler(r);
-			return NGX_AGAIN;
-		}
-		return rc;
-	}
-
-next:
-	rc = ngx_http_output_filter(r, NULL);
-	if (finish) {
-		return rc;
-	} else {
-		if (rc == NGX_AGAIN) {
-			ngx_rtmp_hls_set_write_handler(r);
-			return NGX_AGAIN;
-		}
-		return rc;
-	}
+	return NGX_OK;
 }
 
 
@@ -1706,24 +1694,11 @@ static ngx_int_t
 ngx_rtmp_hls_set_write_handler(ngx_http_request_t *r)
 {
     ngx_event_t               *wev;
-    ngx_http_core_loc_conf_t  *clcf;
 	ngx_rtmp_session_t        *s;
-
-    r->http_state = NGX_HTTP_WRITING_REQUEST_STATE;
-
-    r->write_event_handler = ngx_rtmp_hls_writer;
 
     wev = r->connection->write;
 	s = r->connection->hls_data;
 
-    if (wev->ready && wev->delayed) {
-        return NGX_OK;
-    }
-
-    clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
-    if (!wev->delayed) {
-        ngx_add_timer(wev, clcf->send_timeout);
-    }
 
     if (ngx_handle_write_event(wev, 0) != NGX_OK) {
         ngx_rtmp_finalize_session(s);
@@ -2983,8 +2958,6 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t t, ngx_str_t host,
 	s->app  = cacf->name;
 	s->args = r->args;
 
-	ngx_rtmp_http_hls_change_uri(r, host, hacf);
-
 	ngx_str_set(&s->flashver, "HLS 17,0,0,188");
 	s->swf_url  = r->headers_in.user_agent->value;
 	s->page_url = r->headers_in.user_agent->value;
@@ -3000,14 +2973,6 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t t, ngx_str_t host,
     }
 	ctx->request_type = t;
 
-	cln = ngx_pool_cleanup_add(r->pool, 0);
-    if (cln == NULL) {
-        return NGX_ERROR;
-    }
-
-    cln->handler = ngx_rtmp_http_hls_cleanup;
-    cln->data = s;
-
 	return NGX_OK;
 }
 
@@ -3018,7 +2983,8 @@ ngx_rtmp_hls_auth_done(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 {
     ngx_rtmp_hls_ctx_t   *ctx;
 	ngx_http_request_t   *r;
-	ngx_int_t             rc;
+	ngx_int_t             rc, open;
+	ngx_chain_t           out;
 	ngx_int_t            *prc = (ngx_int_t *)in->buf->start;
 
 	r = s->rdata;
@@ -3032,12 +2998,18 @@ ngx_rtmp_hls_auth_done(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     if (*prc != NGX_OK) {
     	ngx_rtmp_finalize_session(s);
-		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "http_hls auth done finalize session");
     } else {
-    	rc = ngx_rtmp_hls_send_response(r, 0);
-		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "http_hls auth done send response");
-		if (rc == NGX_OK || rc == NGX_AGAIN) {
-			ngx_rtmp_hls_delink_stream(s);
+    	open = ngx_rtmp_hls_open_file(r, &out);
+		if (open == NGX_OK) {
+			rc = ngx_http_output_filter(r, &out);
+			if (rc == NGX_OK) {
+				ngx_rtmp_hls_delink_stream(s);
+			} else if (rc == NGX_AGAIN) {
+				ngx_rtmp_hls_delink_stream(s);
+				ngx_rtmp_hls_set_write_handler(r);
+			} else {
+				ngx_rtmp_finalize_session(s);
+			}
 		}
     }
 
@@ -3055,9 +3027,10 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
 	ngx_rtmp_conf_port_t                *cf_port;
 	ngx_rtmp_session_t                  *s;
 	ngx_int_t                            t;
-    ngx_int_t                  	         rc;
+    ngx_int_t                  	         rc, open;
 	ngx_str_t                            host;
 	ngx_str_t                            stream_name;
+	ngx_chain_t                          out;
 
 	hlcf = ngx_http_get_module_loc_conf(r, ngx_rtmp_http_hls_module);
 	if (hlcf == NULL || !hlcf->hls) {
@@ -3096,40 +3069,50 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
 	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
               "http_hls handle uri: '%V' args: '%V' r->out: '%d'", &r->uri, &r->args, r->out == NULL);
 
+	if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) != NGX_OK) {
+		goto error;
+	}
+
+	ngx_rtmp_http_hls_change_uri(r, host, hacf);
+
+	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+              "http_hls handle uri changed uri: '%V' args: '%V'", &r->uri, &r->args);
+
 	s = r->connection->hls_data;
+	if (!(s == NULL && t == NGX_RTMP_HTTP_HLS_ACCESS_M3U8)) {
+		open = ngx_rtmp_hls_open_file(r, &out);
+
+		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+              "http_hls open file finished rc: '%d'", rc);
+	}
+
 	if (s != NULL) {
-		if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) == NGX_OK) {
-			ngx_rtmp_http_hls_change_uri(r, host, hacf);
-			return ngx_rtmp_hls_send_response(r, 0);
-		} else {
-			return NGX_DECLINED;
+		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "http_hls handle keep-alived request");
+		if (open != NGX_OK) {
+			goto error;
 		}
+		return ngx_http_output_filter(r, &out);
 	}
 
 	switch(t) {
 		case NGX_RTMP_HTTP_HLS_ACCESS_TS:
 		{
-			if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) == NGX_OK) {
-				ngx_rtmp_http_hls_change_uri(r, host, hacf);
-				return ngx_rtmp_hls_send_response(r, 0);
+			if (open != NGX_OK) {
+				goto error;
 			}
-			break;
+			return ngx_http_output_filter(r, &out);
 		}
 		case NGX_RTMP_HTTP_HLS_ACCESS_M3U8:
 		{
-			if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) == NGX_OK) {
+			ngx_rtmp_hls_init_connection(r, t, host, &stream_name, cscf, cacf, hacf, cf_port);
 
-				ngx_rtmp_hls_init_connection(r, t, host, &stream_name, cscf, cacf, hacf, cf_port);
+			ngx_rtmp_http_hls_play_local(r, &stream_name);
 
-				ngx_rtmp_http_hls_play_local(r, &stream_name);
-
-				return NGX_CUSTOME;
-			} else {
-				return NGX_DECLINED;
-			}
+			return NGX_CUSTOME;
 		}
 	}
 
+error:
 	r->headers_out.status = NGX_HTTP_FORBIDDEN;
 	r->headers_out.content_length_n = 0;
 	return ngx_http_send_header(r);
@@ -3249,6 +3232,10 @@ ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 							*out_host = srna->name;
 							*out_stream_name = name;
 
+							ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+		              					"match_app success host: '%V' app: '%V' name: '%V'",
+		              					out_host, &(*out_cacf)->name, out_stream_name);
+
 							return NGX_OK;
 				        }
 				    }
@@ -3257,6 +3244,9 @@ ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 		}
     }
 
+	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+				"match_app failed");
+	
 	return NGX_ERROR;
 }
 
