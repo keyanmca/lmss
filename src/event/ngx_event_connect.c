@@ -69,9 +69,7 @@ ngx_event_connect_peer(ngx_peer_connection_t *pc)
     if (pc->local) {
         if (bind(s, pc->local->sockaddr, pc->local->socklen) == -1) {
             ngx_log_error(NGX_LOG_CRIT, pc->log, ngx_socket_errno,
-                          "bind(%V) failed", &pc->local->name);
-
-            goto failed;
+                      "bind(%V) failed", &pc->local->name);
         }
     }
 

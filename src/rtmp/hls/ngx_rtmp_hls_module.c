@@ -38,14 +38,12 @@ static ngx_int_t ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 static void ngx_rtmp_hls_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher);
 static ngx_rtmp_hls_stream_t ** ngx_rtmp_hls_get_stream(ngx_rtmp_session_t *s, u_char *name, int create);
 static ngx_int_t ngx_rtmp_http_hls_play_local(ngx_http_request_t *r, ngx_str_t *stream_name);
-static ngx_int_t ngx_rtmp_hls_send_response(ngx_http_request_t *r);
+static ngx_int_t ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish);
 static ngx_int_t ngx_rtmp_http_hls_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_rtmp_http_hls_init(ngx_conf_t *cf);
 static u_char *  ngx_rtmp_hls_log_error(ngx_log_t *log, u_char *buf, size_t len);
 static ngx_int_t ngx_rtmp_hls_set_write_handler(ngx_http_request_t *r);
 extern void ngx_rtmp_close_connection(ngx_connection_t *c);
-static void ngx_rtmp_hls_cycle(ngx_rtmp_session_t *s);
-static void ngx_rtmp_hls_recv(ngx_event_t *rev);
 
 #define ngx_rtmp_hls_get_module_app_conf(app_conf, module)  (app_conf ? \
 					app_conf[module.ctx_index] : NULL)
@@ -465,6 +463,46 @@ ngx_rtmp_hls_write_variant_playlist(ngx_rtmp_session_t *s)
 }
 
 
+static ngx_rtmp_hls_ctx_t *
+ngx_rtmp_hls_delink_stream(ngx_rtmp_session_t *s)
+{
+	ngx_rtmp_hls_ctx_t             *ctx, **cctx;
+	ngx_rtmp_hls_stream_t         **hls_stream;
+	ngx_rtmp_hls_app_conf_t        *hacf;
+
+	hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
+    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
+
+	if (ctx->hls_stream->publishing && ctx->publishing) {
+        ctx->hls_stream->publishing = 0;
+    }
+
+    for (cctx = &ctx->hls_stream->ctx; *cctx; cctx = &(*cctx)->next) {
+        if (*cctx == ctx) {
+            *cctx = ctx->next;
+            break;
+        }
+    }
+
+	if (ctx->hls_stream->ctx) {
+		ctx->hls_stream = NULL;
+		return ctx->next;
+	}
+
+	hls_stream = ngx_rtmp_hls_get_stream(s, ctx->hls_stream->name, 0);
+    if (hls_stream == NULL) {
+        return NULL;
+    }
+    *hls_stream = (*hls_stream)->next;
+
+    ctx->hls_stream->next = hacf->free_streams;
+    hacf->free_streams    = ctx->hls_stream;
+    ctx->hls_stream       = NULL;
+
+	return NULL;
+}
+
+
 static ngx_int_t
 ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
 {
@@ -575,18 +613,26 @@ ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
     }
 
 	if (ctx->hls_stream) {
-		for (pctx = ctx->hls_stream->ctx; pctx; pctx = pctx->next) {
+		for (pctx = ctx->hls_stream->ctx; pctx;) {
 		    if (pctx == ctx || pctx->request_type == NGX_RTMP_HTTP_HLS_ACCESS_TS) {
+				pctx = pctx->next;
 		        continue;
 		    }
 
 			ss = pctx->session;
 			r  = ss->rdata;
 
-			rc = ngx_rtmp_hls_send_response(r);
+			rc = ngx_rtmp_hls_send_response(r, 0);
 
 			ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
                       "ngx_rtmp_hls_write_playlist send fragments rc: %d", rc);
+
+			if (rc == NGX_OK || rc == NGX_AGAIN) {
+				pctx = ngx_rtmp_hls_delink_stream(s);
+				continue;
+			}
+
+			pctx = pctx->next;
 		}
 	}
 
@@ -1391,37 +1437,8 @@ next:
 }
 
 
-static void
-ngx_rtmp_hls_recv(ngx_event_t *rev)
-{
-    int                 n;
-    u_char              buf[1];
-    ngx_connection_t   *c;
-	ngx_rtmp_session_t *s;
-
-    c = rev->data;
-    s = c->hls_data;
-
-    ngx_log_debug(NGX_LOG_DEBUG, c->log, 0, "rtmp hls recv");
-
-    n = c->recv(c, buf, 1);
-
-    if (n == NGX_ERROR || n == 0) {
-        ngx_rtmp_finalize_session(s);
-        return;
-    }
-
-    if (n == NGX_AGAIN) {
-        if (ngx_handle_read_event(c->read, 0) != NGX_OK) {
-            ngx_rtmp_finalize_session(s);
-        }
-        return;
-    }
-}
-
-
 static ngx_int_t
-ngx_rtmp_hls_send_response(ngx_http_request_t *r)
+ngx_rtmp_hls_send_response(ngx_http_request_t *r, ngx_int_t finish)
 {
 	u_char					  *last;
 	off_t					   start, len;
@@ -1443,6 +1460,10 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r)
 	last = ngx_http_map_uri_to_path(r, &path, &root, 0);
 	if (last == NULL) {
 		return NGX_ERROR;
+	}
+
+	if (r->out != NULL) {
+		goto next;
 	}
 
 	log = r->connection->log;
@@ -1549,12 +1570,8 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r)
 
 	r->allow_ranges = 1;
 
-	rc = ngx_http_send_header(r);
-
-	ngx_log_error(NGX_LOG_INFO, log, 0, "send_fragment ngx_http_send_header rc: %d!!", rc);
-
-	if (rc == NGX_ERROR || rc > NGX_OK || r->header_only) {
-		return rc;
+	if (!r->header_sent) {
+		rc = ngx_http_send_header(r);
 	}
 
 	b->file_pos = start;
@@ -1573,11 +1590,27 @@ ngx_rtmp_hls_send_response(ngx_http_request_t *r)
 	out.next = NULL;
 
 	rc = ngx_http_output_filter(r, &out);
-	if (rc == NGX_AGAIN) {
-		return ngx_rtmp_hls_set_write_handler(r);
+	if (finish) {
+		return rc;
+	} else {
+		if (rc == NGX_AGAIN) {
+			ngx_rtmp_hls_set_write_handler(r);
+			return NGX_AGAIN;
+		}
+		return rc;
 	}
 
-	return rc;
+next:
+	rc = ngx_http_output_filter(r, NULL);
+	if (finish) {
+		return rc;
+	} else {
+		if (rc == NGX_AGAIN) {
+			ngx_rtmp_hls_set_write_handler(r);
+			return NGX_AGAIN;
+		}
+		return rc;
+	}
 }
 
 
@@ -1662,9 +1695,10 @@ ngx_rtmp_hls_writer(ngx_http_request_t *r)
     ngx_log_debug2(NGX_LOG_DEBUG_HTTP, wev->log, 0,
                    "http writer done: \"%V?%V\"", &r->uri, &r->args);
 
-    r->write_event_handler = ngx_http_request_empty_handler;
+	if (rc == NGX_OK) {
+		r->write_event_handler = ngx_http_core_run_phases;
+	}
 
-    ngx_rtmp_finalize_session(s);
 }
 
 
@@ -1677,7 +1711,6 @@ ngx_rtmp_hls_set_write_handler(ngx_http_request_t *r)
 
     r->http_state = NGX_HTTP_WRITING_REQUEST_STATE;
 
-    r->read_event_handler = ngx_http_request_empty_handler;
     r->write_event_handler = ngx_rtmp_hls_writer;
 
     wev = r->connection->write;
@@ -2748,6 +2781,62 @@ ngx_rtmp_hls_log_error(ngx_log_t *log, u_char *buf, size_t len)
 }
 
 
+static void
+ngx_rtmp_http_hls_cleanup(void *data)
+{
+    ngx_rtmp_session_t  *s = data;
+
+	if (s != NULL) {
+    	ngx_rtmp_finalize_session(s);
+	}
+}
+
+
+static ngx_int_t
+ngx_rtmp_http_hls_change_uri(ngx_http_request_t *r, ngx_str_t host,
+	ngx_rtmp_hls_app_conf_t *hacf)
+{
+	u_char                   *p, *colon;
+	ngx_str_t                 fact;
+	ngx_str_t                 uri;
+	ngx_http_core_loc_conf_t *clcf;
+	ngx_connection_t         *c;
+
+	c = r->connection;
+
+	clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+	if (clcf == NULL) {
+        return NGX_ERROR;
+    }
+
+	colon = ngx_strchr(host.data, ':');
+	if (colon != NULL) {
+		host.len = host.data - colon;
+	}
+
+	fact.data = ngx_strchr(host.data, '.');
+	fact.len = fact.data - host.data;
+	fact.data = host.data;
+
+	ngx_int_t offset = hacf->path.len - clcf->root.len;
+	uri.len = r->uri.len + fact.len + 1;
+	uri.data = ngx_palloc(c->pool, uri.len);
+
+	p = ngx_cpymem(uri.data, r->uri.data, offset);
+	if (hacf->path.data[hacf->path.len - 1] != '/') {
+		*p++ = '/';
+	}
+
+	p = ngx_cpymem(p, fact.data, fact.len);
+
+	p = ngx_cpymem(p, r->uri.data + offset, r->uri.len - offset);
+
+	r->uri = uri;
+
+	return NGX_OK;
+}
+
+
 static ngx_int_t
 ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t t, ngx_str_t host, 
 	ngx_str_t *stream_name, ngx_rtmp_core_srv_conf_t *cscf, ngx_rtmp_core_app_conf_t *cacf,
@@ -2763,11 +2852,9 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t t, ngx_str_t host,
 	struct sockaddr_in    *sin;
     ngx_rtmp_in_addr_t    *addr;
 	ngx_int_t              unix_socket;
-	ngx_int_t              len;
-	ngx_str_t              uri;
-	ngx_str_t              fact;
 	ngx_http_core_loc_conf_t *clcf;
-	u_char                   *p, *colon;
+	ngx_pool_cleanup_t    *cln;
+	u_char                *colon;
 #if (NGX_HAVE_INET6)
     struct sockaddr_in6   *sin6;
     ngx_rtmp_in6_addr_t   *addr6;
@@ -2891,29 +2978,12 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t t, ngx_str_t host,
 	s->host_in.len = host.len;
 	ngx_memcpy(s->host_in.data, host.data, host.len);
 
-	fact.data = ngx_strchr(s->host_in.data, '.');
-	fact.len = fact.data - s->host_in.data;
-	fact.data = s->host_in.data;
-
 	ngx_memzero(s->name, sizeof(s->name));
 	ngx_memcpy(s->name, stream_name->data, stream_name->len);
 	s->app  = cacf->name;
 	s->args = r->args;
 
-	ngx_int_t offset = hacf->path.len - clcf->root.len;
-	uri.len = r->uri.len + fact.len + 1;
-	uri.data = ngx_palloc(c->pool, uri.len);
-
-	p = ngx_cpymem(uri.data, r->uri.data, offset);
-	if (hacf->path.data[hacf->path.len - 1] != '/') {
-		*p++ = '/';
-	}
-
-	p = ngx_cpymem(p, fact.data, fact.len);
-
-	p = ngx_cpymem(p, r->uri.data + offset, r->uri.len - offset);
-
-	r->uri = uri;
+	ngx_rtmp_http_hls_change_uri(r, host, hacf);
 
 	ngx_str_set(&s->flashver, "HLS 17,0,0,188");
 	s->swf_url  = r->headers_in.user_agent->value;
@@ -2930,21 +3000,15 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t t, ngx_str_t host,
     }
 	ctx->request_type = t;
 
-	ngx_rtmp_hls_cycle(s);
+	cln = ngx_pool_cleanup_add(r->pool, 0);
+    if (cln == NULL) {
+        return NGX_ERROR;
+    }
+
+    cln->handler = ngx_rtmp_http_hls_cleanup;
+    cln->data = s;
 
 	return NGX_OK;
-}
-
-
-static void
-ngx_rtmp_hls_cycle(ngx_rtmp_session_t *s)
-{
-    ngx_connection_t           *c;
-
-    c = s->connection;
-    c->read->handler = ngx_rtmp_hls_recv;
-
-    ngx_rtmp_hls_recv(c->read);
 }
 
 
@@ -2954,6 +3018,7 @@ ngx_rtmp_hls_auth_done(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 {
     ngx_rtmp_hls_ctx_t   *ctx;
 	ngx_http_request_t   *r;
+	ngx_int_t             rc;
 	ngx_int_t            *prc = (ngx_int_t *)in->buf->start;
 
 	r = s->rdata;
@@ -2969,8 +3034,11 @@ ngx_rtmp_hls_auth_done(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
     	ngx_rtmp_finalize_session(s);
 		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "http_hls auth done finalize session");
     } else {
-    	ngx_rtmp_hls_send_response(r);
+    	rc = ngx_rtmp_hls_send_response(r, 0);
 		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "http_hls auth done send response");
+		if (rc == NGX_OK || rc == NGX_AGAIN) {
+			ngx_rtmp_hls_delink_stream(s);
+		}
     }
 
 	return NGX_OK;
@@ -2985,6 +3053,7 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
 	ngx_rtmp_core_app_conf_t            *cacf;
 	ngx_rtmp_hls_app_conf_t             *hacf;
 	ngx_rtmp_conf_port_t                *cf_port;
+	ngx_rtmp_session_t                  *s;
 	ngx_int_t                            t;
     ngx_int_t                  	         rc;
 	ngx_str_t                            host;
@@ -3025,15 +3094,40 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
     }
 
 	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                  "http_hls handle uri: '%V' args: '%V' r->out: '%d'", &r->uri, &r->args, r->out == NULL);
+              "http_hls handle uri: '%V' args: '%V' r->out: '%d'", &r->uri, &r->args, r->out == NULL);
 
-	if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) == NGX_OK) {
+	s = r->connection->hls_data;
+	if (s != NULL) {
+		if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) == NGX_OK) {
+			ngx_rtmp_http_hls_change_uri(r, host, hacf);
+			return ngx_rtmp_hls_send_response(r, 0);
+		} else {
+			return NGX_DECLINED;
+		}
+	}
 
-		ngx_rtmp_hls_init_connection(r, t, host, &stream_name, cscf, cacf, hacf, cf_port);
+	switch(t) {
+		case NGX_RTMP_HTTP_HLS_ACCESS_TS:
+		{
+			if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) == NGX_OK) {
+				ngx_rtmp_http_hls_change_uri(r, host, hacf);
+				return ngx_rtmp_hls_send_response(r, 0);
+			}
+			break;
+		}
+		case NGX_RTMP_HTTP_HLS_ACCESS_M3U8:
+		{
+			if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) == NGX_OK) {
 
-		ngx_rtmp_http_hls_play_local(r, &stream_name);
+				ngx_rtmp_hls_init_connection(r, t, host, &stream_name, cscf, cacf, hacf, cf_port);
 
-		return NGX_CUSTOME;
+				ngx_rtmp_http_hls_play_local(r, &stream_name);
+
+				return NGX_CUSTOME;
+			} else {
+				return NGX_DECLINED;
+			}
+		}
 	}
 
 	r->headers_out.status = NGX_HTTP_FORBIDDEN;
@@ -3134,8 +3228,8 @@ ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 							ngx_strncmp(hacf->path.data + clcf->root.len, r->uri.data, hacf->path.len - clcf->root.len) == 0 &&
 							ngx_strncmp((*cacf)->name.data, r->uri.data + hacf->path.len + 1 - clcf->root.len, (*cacf)->name.len) == 0) {
 
-							name.data = r->uri.data + 1 + hacf->path.len + 1;
-							name.len = r->uri.len - 1 - hacf->path.len - 1;
+							name.data = r->uri.data + (hacf->path.len - clcf->root.len) + 1 + (*cacf)->name.len + 1;
+							name.len = r->uri.len - (hacf->path.len - clcf->root.len) - 1 - (*cacf)->name.len - 1;
 							switch(t) {
 								case NGX_RTMP_HTTP_HLS_ACCESS_TS:
 								{
