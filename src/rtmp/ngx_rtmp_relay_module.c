@@ -1631,7 +1631,57 @@ ngx_rtmp_relay_player_dry(ngx_rtmp_session_t *s, ngx_str_t *name)
 
 	if (ctx->publish != NULL &&
 		ctx->publish->play == NULL) {
-		ngx_rtmp_finalize_session(ctx->publish->session);
+		if (s->hls) {
+			if (!ctx->publish->hold_evt.timer_set) {
+				ngx_add_timer(&ctx->publish->hold_evt, racf->hold_timeout);
+			}
+		} else {
+			ngx_rtmp_finalize_session(ctx->publish->session);
+		}
+	}
+
+	return NGX_OK;
+}
+
+
+ngx_int_t
+ngx_rtmp_relay_player_new(ngx_rtmp_session_t *s, ngx_str_t *name)
+{
+	ngx_rtmp_relay_app_conf_t      *racf;
+	ngx_rtmp_relay_ctx_t           *ctx;
+
+    racf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_relay_module);
+    if (racf == NULL) {
+        ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
+                "slot=%i, name=%V, ngx_rtmp_relay_player_new: ngx_rtmp_get_module_app_conf failure.",
+                ngx_process_slot, name);
+        return NGX_ERROR;
+    }
+
+    ctx = racf->ctx[ngx_hash_key(name->data, name->len) % racf->nbuckets];
+    for (; ctx; ctx = ctx->next) {
+        if (ctx->name.len == name->len
+            && !ngx_memcmp(name->data, ctx->name.data, name->len))
+        {
+            break;
+        }
+    }
+
+	if (ctx == NULL) {
+		ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
+                "slot=%i, name=%V, ngx_rtmp_relay_player_new: didn't find relay publisher.",
+                ngx_process_slot, name);
+		return NGX_ERROR;
+	}
+
+	if (ctx->publish != NULL &&
+		ctx->publish->play == NULL) {
+		ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
+                "slot=%i, name=%V, ngx_rtmp_relay_player_new: the first player connected.",
+                ngx_process_slot, name);
+		if (ctx->publish->hold_evt.timer_set) {
+			ngx_del_timer(&ctx->publish->hold_evt);
+		}
 	}
 
 	return NGX_OK;

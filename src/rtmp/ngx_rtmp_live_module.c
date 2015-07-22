@@ -32,6 +32,7 @@ static void ngx_rtmp_live_start(ngx_rtmp_session_t *s);
 static void ngx_rtmp_live_stop(ngx_rtmp_session_t *s);
 extern ngx_int_t ngx_rtmp_relay_relaying(ngx_rtmp_session_t *s, ngx_str_t *name);
 extern ngx_int_t ngx_rtmp_relay_player_dry(ngx_rtmp_session_t *s, ngx_str_t *name);
+extern ngx_int_t ngx_rtmp_relay_player_new(ngx_rtmp_session_t *s, ngx_str_t *name);
 
 
 static ngx_command_t  ngx_rtmp_live_commands[] = {
@@ -628,6 +629,11 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
          //del checking timer
          ngx_del_timer(&(*stream)->check_evt);
+    } else {
+    	ngx_str_t strname;
+		strname.data = name;
+		strname.len  = ngx_strlen(name);
+    	ngx_rtmp_relay_player_new(s, &strname);
     }
 
     ctx->stream = *stream;

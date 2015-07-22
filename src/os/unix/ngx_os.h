@@ -16,6 +16,7 @@
 #define NGX_IO_SENDFILE    1
 
 
+typedef void (*ngx_hls_closer_pt)(ngx_connection_t *c);
 typedef ssize_t (*ngx_recv_pt)(ngx_connection_t *c, u_char *buf, size_t size);
 typedef ssize_t (*ngx_recv_chain_pt)(ngx_connection_t *c, ngx_chain_t *in);
 typedef ssize_t (*ngx_send_pt)(ngx_connection_t *c, u_char *buf, size_t size);

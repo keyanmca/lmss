@@ -310,7 +310,7 @@ ngx_rtmp_finalize_session(ngx_rtmp_session_t *s)
     ngx_connection_t   *c;
 
     c = s->connection;
-    if (c->destroyed) {
+    if (c->destroyed && !s->hls) {
         return;
     }
 

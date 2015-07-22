@@ -74,6 +74,8 @@ typedef struct ngx_rtmp_hls_ctx_s {
     uint64_t                            aframe_pts;
 
     ngx_rtmp_hls_variant_t             *var;
+	ngx_event_t                         retry_evt;
+    ngx_msec_t                          retry_evt_msec;
 };
 
 

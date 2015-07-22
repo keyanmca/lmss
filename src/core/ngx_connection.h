@@ -124,6 +124,7 @@ struct ngx_connection_s {
 
     ngx_socket_t        fd;
 
+	ngx_hls_closer_pt   hls_closer;
     ngx_recv_pt         recv;
     ngx_send_pt         send;
     ngx_recv_chain_pt   recv_chain;
@@ -137,6 +138,7 @@ struct ngx_connection_s {
 	ngx_log_t          *hls_log;
 
     ngx_pool_t         *pool;
+	ngx_pool_t         *hls_pool;
 
     struct sockaddr    *sockaddr;
     socklen_t           socklen;
