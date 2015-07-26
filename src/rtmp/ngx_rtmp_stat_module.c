@@ -1053,7 +1053,7 @@ ngx_rtmp_stat_server(ngx_http_request_t *r, ngx_chain_t ***lll,
 	
     NGX_RTMP_STAT_L("<server>\r\n");
     NGX_RTMP_STAT_L("<name>");
-    NGX_RTMP_STAT_ES(&(names->name));
+    NGX_RTMP_STAT_ES(&(names->up_srv_name));
     NGX_RTMP_STAT_L("</name>\r\n");
 
 	para.vhost = names->up_srv_name;
