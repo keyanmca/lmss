@@ -35,13 +35,9 @@ static ngx_int_t ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 	ngx_rtmp_core_srv_conf_t **out_cscf, ngx_rtmp_core_app_conf_t **out_cacf,
 	ngx_rtmp_conf_port_t **out_cfport, ngx_rtmp_hls_app_conf_t **out_hacf,
 	ngx_str_t *out_host, ngx_str_t *out_stream_name);
-static void ngx_rtmp_hls_join(ngx_rtmp_session_t *s, u_char *name);
-static ngx_rtmp_hls_stream_t ** ngx_rtmp_hls_get_stream(ngx_rtmp_session_t *s, u_char *name, int create);
 static ngx_int_t ngx_rtmp_http_hls_play_local(ngx_http_request_t *r, ngx_str_t *stream_name);
 static ngx_int_t ngx_rtmp_http_hls_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_rtmp_http_hls_init(ngx_conf_t *cf);
-static u_char *  ngx_rtmp_hls_log_error(ngx_log_t *log, u_char *buf, size_t len);
-static ngx_int_t ngx_rtmp_hls_set_write_handler(ngx_http_request_t *r);
 static ngx_int_t ngx_rtmp_hls_open_file(ngx_http_request_t *r, ngx_chain_t *out);
 extern void ngx_rtmp_close_connection(ngx_connection_t *c);
 
@@ -464,41 +460,6 @@ ngx_rtmp_hls_write_variant_playlist(ngx_rtmp_session_t *s)
 }
 
 
-static ngx_rtmp_hls_ctx_t *
-ngx_rtmp_hls_delink_stream(ngx_rtmp_session_t *s, ngx_rtmp_hls_ctx_t *ctx)
-{
-	ngx_rtmp_hls_ctx_t            **cctx;
-	ngx_rtmp_hls_stream_t         **hls_stream;
-	ngx_rtmp_hls_app_conf_t        *hacf;
-
-	hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
-
-    for (cctx = &ctx->hls_stream->ctx; *cctx; cctx = &(*cctx)->next) {
-        if (*cctx == ctx) {
-            *cctx = ctx->next;
-            break;
-        }
-    }
-
-	if (ctx->hls_stream->ctx) {
-		ctx->hls_stream = NULL;
-		return ctx->next;
-	}
-
-	hls_stream = ngx_rtmp_hls_get_stream(s, ctx->hls_stream->name, 0);
-    if (hls_stream == NULL) {
-        return NULL;
-    }
-    *hls_stream = (*hls_stream)->next;
-
-    ctx->hls_stream->next = hacf->free_streams;
-    hacf->free_streams    = ctx->hls_stream;
-    ctx->hls_stream       = NULL;
-
-	return NULL;
-}
-
-
 static ngx_int_t
 ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
 {
@@ -608,45 +569,6 @@ ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
     if (ctx->var) {
         return ngx_rtmp_hls_write_variant_playlist(s);
     }
-
-#if 0
-	if (ctx->hls_stream) {
-		for (pctx = ctx->hls_stream->ctx; pctx;) {
-		    if (pctx == ctx) {
-				pctx = pctx->next;
-		        continue;
-		    }
-
-			ss = pctx->session;
-			r  = ss->rdata;
-
-			ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                      "ngx_rtmp_hls_write_playlist send m3u8");
-
-			ngx_memzero(&out, sizeof(out));
-			opened = ngx_rtmp_hls_open_file(r, &out);
-			if (opened == NGX_OK) {
-				rc = ngx_http_output_filter(r, &out);
-				if (rc == NGX_OK) {
-					pctx = ngx_rtmp_hls_delink_stream(s, pctx);
-					continue;
-				} else if (rc == NGX_AGAIN) {
-					pctx = ngx_rtmp_hls_delink_stream(s, pctx);
-					continue;
-				} else {
-					ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                    		"ngx_rtmp_hls_write_playlist output failed, but why?");
-				}
-				ngx_http_finalize_request(r, rc);
-			} else {
-				ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                      	"ngx_rtmp_hls_write_playlist open file failed");
-			}
-
-			pctx = pctx->next;
-		}
-	}
-#endif
 
     return NGX_OK;
 }
@@ -1435,8 +1357,6 @@ ngx_rtmp_hls_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
 		ctx->retry_evt_msec = 2000;
     }
 
-	// ngx_rtmp_hls_join(s, v->name);
-
     ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
                    "hls_play: name='%s' start=%uD duration=%uD reset=%d page_url='%V' addr_text='%V' tc_url='%V' flashver='%V'",
                    v->name, (uint32_t) v->start,
@@ -1596,112 +1516,6 @@ ngx_rtmp_hls_open_file(ngx_http_request_t *r, ngx_chain_t *out)
 	out->next = NULL;
 
 	return NGX_OK;
-}
-
-
-static void
-ngx_rtmp_hls_writer(ngx_http_request_t *r)
-{
-    int                        rc;
-    ngx_event_t               *wev;
-    ngx_connection_t          *c;
-	ngx_rtmp_session_t        *s;
-    ngx_http_core_loc_conf_t  *clcf;
-
-    c = r->connection;
-    wev = c->write;
-	s = c->hls_data;
-
-    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, wev->log, 0,
-                   "http writer handler: \"%V?%V\"", &r->uri, &r->args);
-
-    clcf = ngx_http_get_module_loc_conf(r->main, ngx_http_core_module);
-
-    if (wev->timedout) {
-        if (!wev->delayed) {
-            ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT,
-                          "client timed out");
-            c->timedout = 1;
-
-			ngx_rtmp_finalize_session(s);
-            return;
-        }
-
-        wev->timedout = 0;
-        wev->delayed = 0;
-
-        if (!wev->ready) {
-            ngx_add_timer(wev, clcf->send_timeout);
-
-            if (ngx_handle_write_event(wev, clcf->send_lowat) != NGX_OK) {
-                ngx_rtmp_finalize_session(s);
-            }
-
-            return;
-        }
-
-    }
-
-    if (wev->delayed || r->aio) {
-        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, wev->log, 0,
-                       "http writer delayed");
-
-        if (ngx_handle_write_event(wev, clcf->send_lowat) != NGX_OK) {
-            ngx_rtmp_finalize_session(s);
-        }
-
-        return;
-    }
-
-    rc = ngx_http_output_filter(r, NULL);
-
-    ngx_log_debug3(NGX_LOG_DEBUG_HTTP, c->log, 0,
-                   "http writer output filter: %d, \"%V?%V\"",
-                   rc, &r->uri, &r->args);
-
-    if (rc == NGX_ERROR) {
-        ngx_rtmp_finalize_session(s);
-        return;
-    }
-
-    if (r->buffered || r->postponed || (r == r->main && c->buffered)) {
-
-        if (!wev->delayed) {
-            ngx_add_timer(wev, clcf->send_timeout);
-        }
-
-        if (ngx_handle_write_event(wev, clcf->send_lowat) != NGX_OK) {
-            ngx_rtmp_finalize_session(s);
-        }
-
-        return;
-    }
-
-    ngx_log_debug2(NGX_LOG_DEBUG_HTTP, wev->log, 0,
-                   "http writer done: \"%V?%V\"", &r->uri, &r->args);
-
-	if (rc == NGX_OK) {
-		r->write_event_handler = ngx_http_core_run_phases;
-	}
-
-}
-
-
-static ngx_int_t
-ngx_rtmp_hls_set_write_handler(ngx_http_request_t *r)
-{
-    ngx_event_t               *wev;
-	ngx_rtmp_session_t        *s;
-
-    wev = r->connection->write;
-	s = r->connection->hls_data;
-
-    if (ngx_handle_write_event(wev, 0) != NGX_OK) {
-        ngx_rtmp_finalize_session(s);
-        return NGX_ERROR;
-    }
-
-    return NGX_OK;
 }
 
 
@@ -2734,50 +2548,6 @@ ngx_rtmp_hls_init_session(ngx_connection_t *c, ngx_rtmp_addr_conf_t *addr_conf)
 }
 
 
-static u_char *
-ngx_rtmp_hls_log_error(ngx_log_t *log, u_char *buf, size_t len)
-{
-    u_char                     *p;
-    ngx_rtmp_session_t         *s;
-    ngx_rtmp_error_log_ctx_t   *ctx;
-
-    if (log->action) {
-        p = ngx_snprintf(buf, len, " while %s", log->action);
-        len -= p - buf;
-        buf = p;
-    }
-
-    ctx = log->data;
-
-    p = ngx_snprintf(buf, len, ", client: %V", ctx->client);
-    len -= p - buf;
-    buf = p;
-
-    s = ctx->session;
-
-    if (s == NULL) {
-        return p;
-    }
-
-    p = ngx_snprintf(buf, len, ", server: %V", s->addr_text);
-    len -= p - buf;
-    buf = p;
-
-    return p;
-}
-
-
-static void
-ngx_rtmp_http_hls_cleanup(void *data)
-{
-    ngx_rtmp_session_t  *s = data;
-
-	if (s != NULL) {
-    	ngx_rtmp_finalize_session(s);
-	}
-}
-
-
 static ngx_int_t
 ngx_rtmp_http_hls_change_uri(ngx_http_request_t *r, ngx_str_t host,
 	ngx_rtmp_hls_app_conf_t *hacf)
@@ -3327,90 +3097,6 @@ ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 				"match_app failed");
 	
 	return NGX_ERROR;
-}
-
-
-static void
-ngx_rtmp_hls_join(ngx_rtmp_session_t *s, u_char *name)
-{
-    ngx_rtmp_hls_ctx_t            *ctx;
-    ngx_rtmp_hls_stream_t        **hls_stream;
-    ngx_rtmp_hls_app_conf_t       *hacf;
-
-    hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
-    if (hacf == NULL) {
-        return;
-    }
-
-    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
-    if (ctx && ctx->hls_stream) {
-        return;
-    }
-
-    ctx->session = s;
-
-    ngx_log_debug(NGX_LOG_DEBUG, s->connection->log, 0,
-			"hls_live: join '%s'", name);
-
-    hls_stream = ngx_rtmp_hls_get_stream(s, name, hacf->idle_streams);
-
-    if (hls_stream == NULL || !hacf->idle_streams)
-    {
-    	ngx_log_debug(NGX_LOG_DEBUG, s->connection->log, 0,
-                   "hls_live get stream nil or not idle_stream: join '%s'", name);
-        return;
-    }
-
-    ctx->hls_stream = *hls_stream;
-    ctx->publishing = 0;
-    ctx->next = (*hls_stream)->ctx;
-
-    (*hls_stream)->ctx = ctx;
-
-}
-
-
-static ngx_rtmp_hls_stream_t **
-ngx_rtmp_hls_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
-{
-    ngx_rtmp_hls_app_conf_t   *hacf;
-    ngx_rtmp_hls_stream_t    **stream;
-    size_t                      len;
-
-    hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
-    if (hacf == NULL) {
-        return NULL;
-    }
-
-    len = ngx_strlen(name);
-    stream = &hacf->streams[ngx_hash_key(name, len) % hacf->nbuckets];
-
-    for (; *stream; stream = &(*stream)->next) {
-        if (ngx_strcmp(name, (*stream)->name) == 0) {
-            return stream;
-        }
-    }
-
-    if (!create) {
-        return NULL;
-    }
-
-    ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
-            "hls_live: create stream '%s'", name);
-
-    if (hacf->free_streams) {
-        *stream = hacf->free_streams;
-        hacf->free_streams = hacf->free_streams->next;
-    } else {
-        *stream = ngx_palloc(hacf->pool, sizeof(ngx_rtmp_hls_stream_t));
-    }
-    ngx_memzero(*stream, sizeof(ngx_rtmp_hls_stream_t));
-    ngx_memcpy((*stream)->name, name,
-            ngx_min(sizeof((*stream)->name) - 1, len));
-    (*stream)->epoch = ngx_current_msec;
-    
-
-    return stream;
 }
 
 
