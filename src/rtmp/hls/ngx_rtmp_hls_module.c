@@ -1494,8 +1494,6 @@ ngx_rtmp_hls_open_file(ngx_http_request_t *r, ngx_chain_t *out)
 		return NGX_ERROR;
 	}
 
-	r->allow_ranges = 1;
-
 	if (!r->header_sent) {
 		ngx_http_send_header(r);
 	}
