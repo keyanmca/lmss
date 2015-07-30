@@ -647,7 +647,9 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
 	ngx_str_t flashver;
 	ngx_str_set(&flashver, "ngx-relay");
-	if (ngx_strncmp(s->flashver.data, flashver.data, ngx_min(s->flashver.len, flashver.len)) != 0) {
+	if (ngx_strncmp(s->flashver.data, flashver.data, ngx_min(s->flashver.len, flashver.len)) == 0) {
+		ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+                          "live: '%V/%s', here comes relay play", &s->app, name);
 		ctx->relay_next = (*stream)->relay_ctx;
 		(*stream)->relay_ctx = ctx;
 	}

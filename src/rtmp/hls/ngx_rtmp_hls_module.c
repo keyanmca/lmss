@@ -796,6 +796,8 @@ ngx_rtmp_hls_send_start_slice(ngx_rtmp_session_t *s)
             continue;
         }
 
+		ngx_log_error(NGX_LOG_ERR, s->connection->log, 0, "send_start_slice %p", relay_ctx);
+
 		rs = relay_ctx->session;
 		ngx_rtmp_send_start_hls_slice(rs, hctx->frag, hctx->frag_ts);
 	}
@@ -2192,8 +2194,13 @@ ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *
 		goto next;
 	}
 
+	ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+               "start_hls_slice: ctx->sliced='%d' playlen=%M",
+               ppath, playlen);
+
 	if (ctx->sliced == 0) {
 		ctx->frag = v->frag;
+		ctx->frag_ts = v->frag_ts;
 		ctx->sliced = 1;
 	}
 

@@ -309,7 +309,7 @@ ngx_chain_t *
 ngx_rtmp_create_start_hls_slice(ngx_rtmp_session_t *s, uint64_t frag,
 	uint64_t frag_ts)
 {
-    ngx_log_debug2(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+    ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
                    "create: start_hls_slice frag=%uD, frag_ts=%uD",
                    frag, frag_ts);
 

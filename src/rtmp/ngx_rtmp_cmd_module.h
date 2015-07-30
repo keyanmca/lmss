@@ -100,6 +100,7 @@ typedef struct {
 
 typedef struct {
     uint64_t                        frag;
+	uint64_t                        frag_ts;
 } ngx_rtmp_start_hls_slice_t;
 
 void ngx_rtmp_cmd_fill_args(u_char name[NGX_RTMP_MAX_NAME],
