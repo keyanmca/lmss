@@ -130,6 +130,7 @@ typedef struct {
 #define NGX_RTMP_USER_PING_RESPONSE     7
 #define NGX_RTMP_USER_UNKNOWN           8
 #define NGX_RTMP_USER_BUFFER_END        31
+#define NGX_RTMP_USER_START_HLS_SLICE   32
 
 
 /* Chunk header:

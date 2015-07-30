@@ -154,6 +154,18 @@ ngx_rtmp_user_message_handler(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
                 return ngx_rtmp_stream_dry(s, &v);
             }
 
+		case NGX_RTMP_USER_START_HLS_SLICE:
+			{
+				ngx_rtmp_start_hls_slice_t  v;
+
+				v.msid = val;
+
+				ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+                               "receive: start_hls_slice msid=%uD", v.msid);
+
+				return ngx_rtmp_start_hls_slice(s, &v)
+			}
+
         case NGX_RTMP_USER_SET_BUFLEN:
             {
                 ngx_rtmp_set_buflen_t       v;
@@ -203,6 +215,8 @@ ngx_rtmp_user_message_handler(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
             ngx_rtmp_reset_ping(s);
 
             return NGX_OK;
+
+		
 
         default:
             ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,

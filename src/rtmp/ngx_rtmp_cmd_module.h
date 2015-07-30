@@ -98,6 +98,10 @@ typedef struct {
     uint32_t                        buflen;
 } ngx_rtmp_set_buflen_t;
 
+typedef struct {
+    uint32_t                        msid;
+    uint64_t                        frag;
+} ngx_rtmp_start_hls_slice_t;
 
 void ngx_rtmp_cmd_fill_args(u_char name[NGX_RTMP_MAX_NAME],
         u_char args[NGX_RTMP_MAX_ARGS]);
@@ -138,6 +142,8 @@ typedef ngx_int_t (*ngx_rtmp_recorded_pt)(ngx_rtmp_session_t *s,
         ngx_rtmp_recorded_t *v);
 typedef ngx_int_t (*ngx_rtmp_set_buflen_pt)(ngx_rtmp_session_t *s,
         ngx_rtmp_set_buflen_t *v);
+typedef ngx_int_t (*ngx_rtmp_start_hls_slice_pt)(ngx_rtmp_session_t *s,
+        ngx_rtmp_start_hls_slice_t *v);
 
 
 extern ngx_rtmp_connect_pt          ngx_rtmp_connect;

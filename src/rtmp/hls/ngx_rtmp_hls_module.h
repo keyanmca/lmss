@@ -48,6 +48,7 @@ typedef struct ngx_rtmp_hls_ctx_s {
 
     unsigned                            opened:1;
 	unsigned                            request_type:1;
+	unsigned                            sliced:1;
 
     ngx_file_t                          file;
 

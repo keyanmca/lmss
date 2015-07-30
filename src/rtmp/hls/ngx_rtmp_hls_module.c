@@ -18,6 +18,7 @@ static ngx_rtmp_play_pt                 next_play;
 static ngx_rtmp_close_stream_pt         next_close_stream;
 static ngx_rtmp_stream_begin_pt         next_stream_begin;
 static ngx_rtmp_stream_eof_pt           next_stream_eof;
+static ngx_rtmp_start_hls_slice_pt      next_start_hls_slice;
 
 
 static char * ngx_rtmp_hls_variant(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -1771,7 +1772,7 @@ ngx_rtmp_hls_audio(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     codec_ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
 
-    if (hacf == NULL || !hacf->hls || ctx == NULL ||
+    if (hacf == NULL || !hacf->hls || ctx == NULL || !ctx->sliced ||
         codec_ctx == NULL  || h->mlen < 2)
     {
         return NGX_OK;
@@ -1935,7 +1936,7 @@ ngx_rtmp_hls_video(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     codec_ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
 
-    if (hacf == NULL || !hacf->hls || ctx == NULL || codec_ctx == NULL ||
+    if (hacf == NULL || !hacf->hls || ctx == NULL || !ctx->sliced || codec_ctx == NULL ||
         codec_ctx->avc_header == NULL || h->mlen < 1)
     {
         return NGX_OK;
@@ -2137,6 +2138,14 @@ ngx_rtmp_hls_stream_eof(ngx_rtmp_session_t *s, ngx_rtmp_stream_eof_t *v)
     ngx_rtmp_hls_close_fragment(s);
 
     return next_stream_eof(s, v);
+}
+
+
+static ngx_int_t
+ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *v)
+{
+	
+	return next_start_hls_slice(s, v);
 }
 
 
@@ -3148,6 +3157,9 @@ ngx_rtmp_hls_postconfiguration(ngx_conf_t *cf)
 
     next_stream_eof = ngx_rtmp_stream_eof;
     ngx_rtmp_stream_eof = ngx_rtmp_hls_stream_eof;
+
+	next_start_hls_slice = ngx_rtmp_start_hls_slice;
+    ngx_rtmp_start_hls_slice = ngx_rtmp_hls_start_hls_slice;
 
     return NGX_OK;
 }

@@ -65,6 +65,7 @@ ngx_rtmp_stream_eof_pt      ngx_rtmp_stream_eof;
 ngx_rtmp_stream_dry_pt      ngx_rtmp_stream_dry;
 ngx_rtmp_recorded_pt        ngx_rtmp_recorded;
 ngx_rtmp_set_buflen_pt      ngx_rtmp_set_buflen;
+ngx_rtmp_start_hls_slice_pt ngx_rtmp_start_hls_slice;
 
 
 static ngx_int_t ngx_rtmp_cmd_postconfiguration(ngx_conf_t *cf);
@@ -853,6 +854,13 @@ ngx_rtmp_cmd_set_buflen(ngx_rtmp_session_t *s, ngx_rtmp_set_buflen_t *v)
     return NGX_OK;
 }
 
+static ngx_int_t
+ngx_rtmp_cmd_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *v)
+{
+    ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
+		"start_hls_slice: vhost='%V' app='%V' name=%s",&s->host_in ,&s->app, s->name);
+    return NGX_OK;
+}
 
 static ngx_rtmp_amf_handler_t ngx_rtmp_cmd_map[] = {
     { ngx_string("connect"),            ngx_rtmp_cmd_connect_init           },
@@ -919,6 +927,7 @@ ngx_rtmp_cmd_postconfiguration(ngx_conf_t *cf)
     ngx_rtmp_stream_dry = ngx_rtmp_cmd_stream_dry;
     ngx_rtmp_recorded = ngx_rtmp_cmd_recorded;
     ngx_rtmp_set_buflen = ngx_rtmp_cmd_set_buflen;
+	ngx_rtmp_start_hls_slice = ngx_rtmp_cmd_start_hls_slice;
 
     return NGX_OK;
 }
