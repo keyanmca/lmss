@@ -1551,8 +1551,7 @@ static ngx_int_t
 ngx_rtmp_hls_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
     ngx_rtmp_hls_app_conf_t        *hacf;
-	ngx_rtmp_hls_stream_t         **hls_stream;
-    ngx_rtmp_hls_ctx_t             *ctx, **cctx;
+    ngx_rtmp_hls_ctx_t             *ctx;
 
     hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
 
@@ -2195,8 +2194,8 @@ ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *
 	}
 
 	ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
-               "start_hls_slice: ctx->sliced='%d' playlen=%M",
-               ppath, playlen);
+               "start_hls_slice: ctx->sliced='%d' frag=%uD frag_ts=%uD",
+               ctx->sliced, v->frag, v->frag_ts);
 
 	if (ctx->sliced == 0) {
 		ctx->frag = v->frag;
@@ -2870,8 +2869,6 @@ ngx_rtmp_hls_retry_m3u8_timer(ngx_rtmp_session_t *s)
 {
 	ngx_rtmp_hls_ctx_t   *ctx;
 	ngx_http_request_t   *r;
-	ngx_int_t             rc, opened;
-	ngx_chain_t           out;
 	ngx_event_t          *e;;
 
 	r = s->rdata;
