@@ -1800,11 +1800,15 @@ ngx_rtmp_hls_audio(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     codec_ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
 
-    if (hacf == NULL || !hacf->hls || ctx == NULL || !ctx->sliced ||
+    if (hacf == NULL || !hacf->hls || ctx == NULL ||
         codec_ctx == NULL  || h->mlen < 2)
     {
         return NGX_OK;
     }
+
+	if (s->relay && !ctx->sliced) {
+		return NGX_OK;
+	}
 
     if (codec_ctx->audio_codec_id != NGX_RTMP_AUDIO_AAC ||
         codec_ctx->aac_header == NULL || ngx_rtmp_is_codec_header(in))
@@ -1964,11 +1968,15 @@ ngx_rtmp_hls_video(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
     codec_ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_codec_module);
 
-    if (hacf == NULL || !hacf->hls || ctx == NULL || !ctx->sliced || codec_ctx == NULL ||
+    if (hacf == NULL || !hacf->hls || ctx == NULL || codec_ctx == NULL ||
         codec_ctx->avc_header == NULL || h->mlen < 1)
     {
         return NGX_OK;
     }
+
+	if (s->relay && !ctx->sliced) {
+		return NGX_OK;
+	}
 
     /* Only H264 is supported */
     if (codec_ctx->video_codec_id != NGX_RTMP_VIDEO_H264) {

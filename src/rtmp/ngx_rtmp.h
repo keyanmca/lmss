@@ -374,10 +374,6 @@ typedef struct {
 
     ngx_uint_t              update_fail_cnt;
 
-    /* publlisher */
-    ngx_uint_t              publisher;//0:play, 1:normal publisher, 2:repeat publisher
-    
-        
     /* input stream 0 (reserved by RTMP spec)
      * is used as free chain link */
 
