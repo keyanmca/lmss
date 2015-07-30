@@ -10,6 +10,7 @@
 #include <ngx_rtmp_cmd_module.h>
 #include <ngx_rtmp_codec_module.h>
 #include "ngx_rtmp_hls_module.h"
+#include "ngx_rtmp_live_module.h"
 #include "ngx_rtmp_mpegts.h"
 
 
@@ -467,18 +468,14 @@ ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
     static u_char                   buffer[1024];
     ngx_fd_t                        fd;
     u_char                         *p;
-    ngx_rtmp_hls_ctx_t             *ctx, *pctx;
-	ngx_rtmp_session_t             *ss;
-	ngx_http_request_t             *r;
+    ngx_rtmp_hls_ctx_t             *ctx;
     ssize_t                         n;
     ngx_rtmp_hls_app_conf_t        *hacf;
     ngx_rtmp_hls_frag_t            *f;
     ngx_uint_t                      i, max_frag;
     ngx_str_t                       name_part;
     const char                     *sep;
-	ngx_int_t                       rc, opened;
 	u_char                         *dot;
-	ngx_chain_t                     out;
 
 
     hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
