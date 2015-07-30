@@ -298,8 +298,7 @@ ngx_rtmp_close_session_handler(ngx_event_t *e)
         s->out_pos %= s->out_queue;
     }
 
-	if (!c->destroyed)
-    	ngx_rtmp_close_connection(c);
+    ngx_rtmp_close_connection(c);
 }
 
 
