@@ -158,10 +158,8 @@ ngx_rtmp_user_message_handler(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 			{
 				ngx_rtmp_start_hls_slice_t  v;
 
-				v.msid = val;
-
 				ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
-                               "receive: start_hls_slice msid=%uD", v.msid);
+                               "receive: start_hls_slice frag=%uD", v.frag);
 
 				return ngx_rtmp_start_hls_slice(s, &v)
 			}

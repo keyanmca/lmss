@@ -641,9 +641,16 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
     ctx->next = (*stream)->ctx;
 	ctx->hls = s->hls;
     ngx_memcpy(s->name, name, ngx_strlen(name));
-    s->name[ngx_strlen(name)] = 0; 
+    s->name[ngx_strlen(name)] = 0;
 
-    (*stream)->ctx = ctx;
+	(*stream)->ctx = ctx;
+
+	ngx_str_t flashver;
+	ngx_str_set(&flashver, "ngx-relay");
+	if (ngx_strncmp(s->flashver.data, flashver.data, ngx_min(s->flashver.len, flashver.len)) != 0) {
+		ctx->relay_next = (*stream)->relay_ctx;
+		(*stream)->relay_ctx = ctx;
+	}
 
     if (lacf->buflen) {
         s->out_buffer = 1;

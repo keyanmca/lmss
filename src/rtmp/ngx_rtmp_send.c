@@ -42,6 +42,16 @@
     *(__b->last++) = ((u_char*)&v)[1];                                      \
     *(__b->last++) = ((u_char*)&v)[0];
 
+#define NGX_RTMP_USER_OUT8(v)                                               \
+	*(__b->last++) = ((u_char*)&v)[7];                                      \
+    *(__b->last++) = ((u_char*)&v)[6];                                      \
+    *(__b->last++) = ((u_char*)&v)[5];                                      \
+    *(__b->last++) = ((u_char*)&v)[4];                                      \
+    *(__b->last++) = ((u_char*)&v)[3];                                      \
+    *(__b->last++) = ((u_char*)&v)[2];                                      \
+    *(__b->last++) = ((u_char*)&v)[1];                                      \
+    *(__b->last++) = ((u_char*)&v)[0];
+
 #define NGX_RTMP_USER_END(s)                                                \
     ngx_rtmp_prepare_message(s, &__h, NULL, __l);                           \
     return __l;
@@ -292,6 +302,34 @@ ngx_rtmp_send_set_buflen(ngx_rtmp_session_t *s, uint32_t msid,
 {
     return ngx_rtmp_send_shared_packet(s,
            ngx_rtmp_create_set_buflen(s, msid, buflen_msec));
+}
+
+
+ngx_chain_t *
+ngx_rtmp_create_start_hls_slice(ngx_rtmp_session_t *s, uint64_t frag,
+	uint64_t frag_ts)
+{
+    ngx_log_debug2(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+                   "create: start_hls_slice frag=%uD, frag_ts=%uD",
+                   frag, frag_ts);
+
+    {
+        NGX_RTMP_UCTL_START(s, NGX_RTMP_MSG_USER, NGX_RTMP_USER_START_HLS_SLICE);
+
+        NGX_RTMP_USER_OUT8(frag);
+		NGX_RTMP_USER_OUT8(frag_ts);
+
+        NGX_RTMP_USER_END(s);
+    }
+}
+
+
+ngx_int_t
+ngx_rtmp_send_start_hls_slice(ngx_rtmp_session_t *s, uint64_t frag,
+	uint64_t frag_ts)
+{
+    return ngx_rtmp_send_shared_packet(s,
+           ngx_rtmp_create_start_hls_slice(s, frag, frag_ts));
 }
 
 

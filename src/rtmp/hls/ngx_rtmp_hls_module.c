@@ -778,6 +778,36 @@ ngx_rtmp_hls_get_fragment_id(ngx_rtmp_session_t *s, uint64_t ts)
 
 
 static ngx_int_t
+ngx_rtmp_hls_send_start_slice(ngx_rtmp_session_t *s)
+{
+	ngx_rtmp_live_ctx_t            *lctx, *relay_ctx;
+	ngx_rtmp_hls_ctx_t             *hctx;
+	ngx_rtmp_session_t             *rs;
+
+	lctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
+    if (lctx == NULL || lctx->stream == NULL) {
+        return NGX_OK;
+    }
+
+	hctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
+    if (hctx == NULL) {
+		return NGX_OK;
+    }
+
+	for (relay_ctx = lctx->stream->relay_ctx; relay_ctx; relay_ctx = relay_ctx->next) {
+        if (relay_ctx == lctx || relay_ctx->paused || relay_ctx->hls) {
+            continue;
+        }
+
+		rs = relay_ctx->session;
+		ngx_rtmp_send_start_hls_slice(rs, hctx->frag, hctx->frag_ts);
+	}
+
+	return NGX_OK;
+}
+
+
+static ngx_int_t
 ngx_rtmp_hls_close_fragment(ngx_rtmp_session_t *s)
 {
     ngx_rtmp_hls_ctx_t         *ctx;
@@ -1693,6 +1723,7 @@ ngx_rtmp_hls_update_fragment(ngx_rtmp_session_t *s, uint64_t ts,
     }
 
     if (boundary || force) {
+		ngx_rtmp_hls_send_start_slice(s);
         ngx_rtmp_hls_close_fragment(s);
         ngx_rtmp_hls_open_fragment(s, ts, discont);
     }
@@ -2144,7 +2175,24 @@ ngx_rtmp_hls_stream_eof(ngx_rtmp_session_t *s, ngx_rtmp_stream_eof_t *v)
 static ngx_int_t
 ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *v)
 {
-	
+	ngx_rtmp_hls_ctx_t             *ctx;
+
+	if (s->relay != 0 && v != NULL) {
+		goto next;
+	}
+
+	ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
+
+	if (ctx == NULL) {
+		goto next;
+	}
+
+	if (ctx->sliced == 0) {
+		ctx->frag = v->frag;
+		ctx->sliced = 1;
+	}
+
+next:
 	return next_start_hls_slice(s, v);
 }
 
