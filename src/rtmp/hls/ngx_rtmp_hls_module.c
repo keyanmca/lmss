@@ -2183,7 +2183,7 @@ ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *
 {
 	ngx_rtmp_hls_ctx_t             *ctx;
 
-	if (s->relay != 0 && v != NULL) {
+	if (s->relay == 0 || v == NULL) {
 		goto next;
 	}
 
