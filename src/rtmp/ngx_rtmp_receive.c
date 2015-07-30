@@ -161,7 +161,7 @@ ngx_rtmp_user_message_handler(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 				ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                                "receive: start_hls_slice frag=%uD", v.frag);
 
-				return ngx_rtmp_start_hls_slice(s, &v)
+				return ngx_rtmp_start_hls_slice(s, &v);
 			}
 
         case NGX_RTMP_USER_SET_BUFLEN:

@@ -159,6 +159,7 @@ extern ngx_rtmp_stream_begin_pt     ngx_rtmp_stream_begin;
 extern ngx_rtmp_stream_eof_pt       ngx_rtmp_stream_eof;
 extern ngx_rtmp_stream_dry_pt       ngx_rtmp_stream_dry;
 extern ngx_rtmp_set_buflen_pt       ngx_rtmp_set_buflen;
+extern ngx_rtmp_start_hls_slice_pt  ngx_rtmp_start_hls_slice;
 extern ngx_rtmp_recorded_pt         ngx_rtmp_recorded;
 
 
