@@ -2203,13 +2203,9 @@ ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *
                ctx->sliced, v->frag, v->frag_ts);
 
 	if (ctx->sliced == 0) {
-		ctx->frag = v->frag;
+		ctx->frag = v->frag + hacf->winfrags + 1;
 		ctx->frag_ts = v->frag_ts;
 		ctx->sliced = 1;
-
-		ctx->frag += hacf->winfrags;
-
-		ngx_rtmp_hls_next_frag(s);
 	}
 
 next:
