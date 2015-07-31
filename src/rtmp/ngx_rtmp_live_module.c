@@ -649,7 +649,7 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 	ngx_str_set(&flashver, "ngx-relay");
 	if (ngx_strncmp(s->flashver.data, flashver.data, ngx_min(s->flashver.len, flashver.len)) == 0) {
 		ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
-                          "live: '%V/%s', here comes relay play", &s->app, name);
+                          "live: '%V/%s', join a relay player", &s->app, name);
 		ctx->relay_next = (*stream)->relay_ctx;
 		(*stream)->relay_ctx = ctx;
 	}
@@ -708,7 +708,7 @@ static ngx_int_t
 ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 {
     ngx_rtmp_session_t             *ss;
-    ngx_rtmp_live_ctx_t            *ctx, **cctx, *pctx;
+    ngx_rtmp_live_ctx_t            *ctx, **cctx, *pctx, **rcctx;
     ngx_rtmp_live_stream_t        **stream;
     ngx_rtmp_live_app_conf_t       *lacf;
 
@@ -742,6 +742,16 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
             break;
         }
     }
+
+	ngx_str_t flashver;
+	ngx_str_set(&flashver, "ngx-relay");
+	if (ngx_strncmp(s->flashver.data, flashver.data, ngx_min(s->flashver.len, flashver.len)) == 0) {
+		for (rcctx = &ctx->stream->relay_ctx; *rcctx; rcctx = &(*rcctx)->relay_next) {
+			if (*rcctx == ctx) {
+				*cctx = ctx->relay_next;
+			}
+		}
+	}
 
     if (ctx->publishing || ctx->stream->active) {
         ngx_rtmp_live_stop(s);
