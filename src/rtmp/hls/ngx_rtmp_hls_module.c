@@ -538,7 +538,7 @@ ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
                          f->discont ? "#EXT-X-DISCONTINUITY\n" : "",
                          f->duration, &hacf->base_url, &name_part, dot, sep, f->id);
 
-        ngx_log_debug5(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+        ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
                        "hls: fragment frag=%uL, n=%ui/%ui, duration=%.3f, "
                        "discont=%i",
                        ctx->frag, i + 1, ctx->nfrags, f->duration, f->discont);
@@ -818,7 +818,7 @@ ngx_rtmp_hls_close_fragment(ngx_rtmp_session_t *s)
         return NGX_OK;
     }
 
-    ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+    ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
                    "hls: close fragment n=%uL", ctx->frag);
 
     ngx_close_file(ctx->file.fd);
@@ -867,7 +867,7 @@ ngx_rtmp_hls_open_fragment(ngx_rtmp_session_t *s, uint64_t ts,
 	else
 		*ngx_sprintf(ctx->stream.data + ctx->stream.len, ".%uL.ts", id) = 0;
 
-    ngx_log_debug5(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+    ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
                    "hls: open fragment file='%s', frag=%uL, n=%ui, time=%uL, "
                    "discont=%i",
                    ctx->stream.data, ctx->frag, ctx->nfrags, ts, discont);
