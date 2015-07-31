@@ -160,25 +160,25 @@ ngx_rtmp_user_message_handler(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
 				p = (u_char *) &v.frag;
 
-                p[0] = b->pos[13];
-                p[1] = b->pos[12];
-                p[2] = b->pos[11];
-                p[3] = b->pos[10];
-				p[4] = b->pos[9];
-                p[5] = b->pos[8];
-                p[6] = b->pos[7];
-                p[7] = b->pos[6];
+                p[0] = b->pos[9];
+                p[1] = b->pos[8];
+                p[2] = b->pos[7];
+                p[3] = b->pos[6];
+				p[4] = b->pos[13];
+                p[5] = b->pos[12];
+                p[6] = b->pos[11];
+                p[7] = b->pos[10];
 
 				p = (u_char *) &v.frag_ts;
 
-                p[0] = b->pos[21];
-                p[1] = b->pos[20];
-                p[2] = b->pos[19];
-                p[3] = b->pos[18];
-				p[4] = b->pos[17];
-                p[5] = b->pos[16];
-                p[6] = b->pos[15];
-                p[7] = b->pos[14];
+                p[0] = b->pos[17];
+                p[1] = b->pos[16];
+                p[2] = b->pos[15];
+                p[3] = b->pos[14];
+				p[4] = b->pos[21];
+                p[5] = b->pos[20];
+                p[6] = b->pos[19];
+                p[7] = b->pos[18];
 
 				ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
                                "receive: start_hls_slice frag=%uD frag_ts=%uD", v.frag, v.frag_ts);
