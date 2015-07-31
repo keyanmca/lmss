@@ -2184,6 +2184,9 @@ static ngx_int_t
 ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *v)
 {
 	ngx_rtmp_hls_ctx_t             *ctx;
+	ngx_rtmp_hls_app_conf_t        *hacf;
+
+    hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
 
 	if (s->relay == 0 || v == NULL) {
 		goto next;
@@ -2203,6 +2206,8 @@ ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *
 		ctx->frag = v->frag;
 		ctx->frag_ts = v->frag_ts;
 		ctx->sliced = 1;
+
+		ctx->frag += hacf->winfrags;
 
 		ngx_rtmp_hls_next_frag(s);
 	}
