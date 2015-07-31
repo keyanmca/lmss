@@ -1723,9 +1723,9 @@ ngx_rtmp_hls_update_fragment(ngx_rtmp_session_t *s, uint64_t ts,
     }
 
     if (boundary || force) {
-		ngx_rtmp_hls_send_start_slice(s);
         ngx_rtmp_hls_close_fragment(s);
         ngx_rtmp_hls_open_fragment(s, ts, discont);
+		ngx_rtmp_hls_send_start_slice(s);
     }
 
     b = ctx->aframe;
