@@ -34,7 +34,6 @@ struct ngx_rtmp_live_ctx_s {
     ngx_rtmp_session_t                 *session;
     ngx_rtmp_live_stream_t             *stream;
     ngx_rtmp_live_ctx_t                *next;
-	ngx_rtmp_live_ctx_t                *relay_next;
     ngx_uint_t                          ndropped;
     ngx_rtmp_live_chunk_stream_t        cs[2];
     ngx_uint_t                          meta_version;
@@ -51,7 +50,6 @@ struct ngx_rtmp_live_stream_s {
     u_char                              name[NGX_RTMP_MAX_NAME];
     ngx_rtmp_live_stream_t             *next;
     ngx_rtmp_live_ctx_t                *ctx;
-	ngx_rtmp_live_ctx_t                *relay_ctx;
     ngx_rtmp_bandwidth_t                bw_in;
     ngx_rtmp_bandwidth_t                bw_real;
     ngx_rtmp_bandwidth_t                bw_in_audio;

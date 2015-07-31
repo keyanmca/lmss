@@ -552,7 +552,7 @@ ngx_rtmp_send(ngx_event_t *wev)
 
 		if (ctx && ctx->stream) {
 
-			if (ngx_memcmp(s->flashver.data, "ngx-relay", s->flashver.len) != 0) {
+			if (ngx_memcmp(s->flashver.data, NGX_RTMP_RELAY_NAME, ngx_strlen(NGX_RTMP_RELAY_NAME)) != 0) {
 
 				ngx_rtmp_update_bandwidth(&ctx->stream->bw_billing_out, n);
 			}

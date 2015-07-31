@@ -777,9 +777,9 @@ ngx_rtmp_hls_get_fragment_id(ngx_rtmp_session_t *s, uint64_t ts)
 static ngx_int_t
 ngx_rtmp_hls_send_start_slice(ngx_rtmp_session_t *s)
 {
-	ngx_rtmp_live_ctx_t            *lctx, *relay_ctx;
+	ngx_rtmp_live_ctx_t            *lctx, *lpctx;
 	ngx_rtmp_hls_ctx_t             *hctx;
-	ngx_rtmp_session_t             *rs;
+	ngx_rtmp_session_t             *ss;
 
 	lctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_live_module);
     if (lctx == NULL || lctx->stream == NULL) {
@@ -791,13 +791,16 @@ ngx_rtmp_hls_send_start_slice(ngx_rtmp_session_t *s)
 		return NGX_OK;
     }
 
-	for (relay_ctx = lctx->stream->relay_ctx; relay_ctx; relay_ctx = relay_ctx->relay_next) {
+	for (lpctx = lctx->stream->ctx; lpctx; lpctx = lpctx->next) {
+        if (lpctx == lctx || lpctx->paused || lpctx->hls) {
+            continue;
+        }
 
-		ngx_log_error(NGX_LOG_ERR, s->connection->log, 0, "send_start_slice %p", relay_ctx);
-
-		rs = relay_ctx->session;
-		if (rs != NULL) {
-			ngx_rtmp_send_start_hls_slice(rs, 1, hctx->frag, hctx->frag_ts);
+		ss = lpctx->session;
+		if (ngx_strncmp(ss->flashver.data, NGX_RTMP_RELAY_NAME, ngx_strlen(NGX_RTMP_RELAY_NAME)) == 0 &&
+				ss->send_sliced == 0) {
+			ngx_rtmp_send_start_hls_slice(ss, 1, hctx->frag, hctx->frag_ts);
+			ss->send_sliced = 1;
 		}
 	}
 

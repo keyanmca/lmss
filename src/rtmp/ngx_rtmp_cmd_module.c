@@ -946,7 +946,7 @@ ngx_rtmp_set_virtual_server(ngx_rtmp_session_t *s, ngx_rtmp_connect_t *v)
 
 	ngx_rtmp_core_main_conf_t *cmcf = ngx_rtmp_core_main_conf;
 
-    if (ngx_memcmp((u_char *)v->flashver, "ngx-relay", ngx_strlen("ngx-relay")) != 0) {
+    if (ngx_memcmp((u_char *)v->flashver, NGX_RTMP_RELAY_NAME, ngx_strlen(NGX_RTMP_RELAY_NAME)) != 0) {
 
         rc = ngx_rtmp_find_virtual_server(s->connection,
                               s->addr_conf->virtual_names,

@@ -545,7 +545,7 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
     addr_conf->ctx = addr_ctx;
     addr_ctx->main_conf = cctx->main_conf;
     addr_ctx->srv_conf  = cctx->srv_conf;
-    ngx_str_set(&addr_conf->addr_text, "ngx-relay");
+    ngx_str_set(&addr_conf->addr_text, NGX_RTMP_RELAY_NAME);
 
     rs = ngx_rtmp_init_session(c, addr_conf);
     if (rs == NULL) {
@@ -559,8 +559,8 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
     rs->relay = 1;
     rctx->session = rs;
     ngx_rtmp_set_ctx(rs, rctx, ngx_rtmp_relay_module);
-    ngx_str_set(&rs->flashver, "ngx-relay");//relay flag
-    ngx_str_set(&rctx->flash_ver, "ngx-relay");//relay flag
+    ngx_str_set(&rs->flashver, NGX_RTMP_RELAY_NAME);//relay flag
+    ngx_str_set(&rctx->flash_ver, NGX_RTMP_RELAY_NAME);//relay flag
     rctx->hold_evt.data = rs;
 	rctx->hold_evt.log = rs->connection->log;
 	rctx->hold_evt.handler = ngx_rtmp_relay_hold_timeout;

@@ -645,15 +645,6 @@ ngx_rtmp_live_join(ngx_rtmp_session_t *s, u_char *name, unsigned publisher)
 
 	(*stream)->ctx = ctx;
 
-	ngx_str_t flashver;
-	ngx_str_set(&flashver, "ngx-relay");
-	if (ngx_strncmp(s->flashver.data, flashver.data, ngx_min(s->flashver.len, flashver.len)) == 0) {
-		ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
-                          "live: '%V/%s', join a relay player", &s->app, name);
-		ctx->relay_next = (*stream)->relay_ctx;
-		(*stream)->relay_ctx = ctx;
-	}
-
     if (lacf->buflen) {
         s->out_buffer = 1;
     }
@@ -743,16 +734,6 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
         }
     }
 
-	ngx_str_t flashver;
-	ngx_str_set(&flashver, "ngx-relay");
-	if (ngx_strncmp(s->flashver.data, flashver.data, ngx_min(s->flashver.len, flashver.len)) == 0) {
-		for (rcctx = &ctx->stream->relay_ctx; *rcctx; rcctx = &(*rcctx)->relay_next) {
-			if (*rcctx == ctx) {
-				*cctx = ctx->relay_next;
-			}
-		}
-	}
-
     if (ctx->publishing || ctx->stream->active) {
         ngx_rtmp_live_stop(s);
     }
@@ -781,7 +762,7 @@ ngx_rtmp_live_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
         	ngx_uint_t nplayer = 0;
             for (pctx = ctx->stream->ctx; pctx; pctx = pctx->next) {
 				if (pctx->publishing == 0) {
-	                if (ngx_memcmp(pctx->session->flashver.data, "ngx-relay", pctx->session->flashver.len) == 0) {
+	                if (ngx_memcmp(pctx->session->flashver.data, NGX_RTMP_RELAY_NAME, ngx_strlen(NGX_RTMP_RELAY_NAME)) == 0) {
 	                    ss = pctx->session;
 	                    ngx_log_error(NGX_LOG_INFO, ss->connection->log, 0,
 	                                   "live: close relay session");
@@ -1250,7 +1231,7 @@ ngx_rtmp_live_av(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
 	if (ctx && ctx->stream) {
 
-		if (ngx_memcmp(s->flashver.data, "ngx-relay", s->flashver.len) != 0) {
+		if (ngx_memcmp(s->flashver.data, NGX_RTMP_RELAY_NAME, ngx_strlen(NGX_RTMP_RELAY_NAME)) != 0) {
 
 			ngx_rtmp_update_bandwidth(&ctx->stream->bw_billing_in, h->mlen);
 		}

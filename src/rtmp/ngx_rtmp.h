@@ -79,7 +79,7 @@ typedef struct {
 
 
 
-
+#define NGX_RTMP_RELAY_NAME             "ngx-relay"
 
 #define NGX_RTMP_VERSION                3
 
@@ -359,6 +359,9 @@ typedef struct {
     ngx_event_t             ping_evt;
     unsigned                ping_active:1;
     unsigned                ping_reset:1;
+
+	/* send slice */
+	unsigned                send_sliced:1;
 
     /* auto-pushed? */
     unsigned                auto_pushed:1;
