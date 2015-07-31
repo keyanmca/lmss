@@ -2203,6 +2203,8 @@ ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *
 		ctx->frag = v->frag;
 		ctx->frag_ts = v->frag_ts;
 		ctx->sliced = 1;
+
+		ngx_rtmp_hls_next_frag(s);
 	}
 
 next:
