@@ -630,7 +630,7 @@ ngx_chain_t * ngx_rtmp_create_stream_dry(ngx_rtmp_session_t *s,
 ngx_chain_t * ngx_rtmp_create_set_buflen(ngx_rtmp_session_t *s,
         uint32_t msid, uint32_t buflen_msec);
 ngx_chain_t * ngx_rtmp_create_start_hls_slice(ngx_rtmp_session_t *s,
-        uint64_t frag, uint64_t frag_ts);
+		uint32_t msid, uint64_t frag, uint64_t frag_ts);
 ngx_chain_t * ngx_rtmp_create_recorded(ngx_rtmp_session_t *s,
         uint32_t msid);
 ngx_chain_t * ngx_rtmp_create_ping_request(ngx_rtmp_session_t *s,
@@ -647,7 +647,7 @@ ngx_int_t ngx_rtmp_send_stream_dry(ngx_rtmp_session_t *s,
 ngx_int_t ngx_rtmp_send_set_buflen(ngx_rtmp_session_t *s,
         uint32_t msid, uint32_t buflen_msec);
 ngx_int_t ngx_rtmp_send_start_hls_slice(ngx_rtmp_session_t *s,
-        uint64_t frag, uint64_t frag_ts);
+        uint32_t msid, uint64_t frag, uint64_t frag_ts);
 ngx_int_t ngx_rtmp_send_recorded(ngx_rtmp_session_t *s,
         uint32_t msid);
 ngx_int_t ngx_rtmp_send_ping_request(ngx_rtmp_session_t *s,

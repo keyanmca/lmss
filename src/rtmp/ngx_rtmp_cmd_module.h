@@ -99,6 +99,7 @@ typedef struct {
 } ngx_rtmp_set_buflen_t;
 
 typedef struct {
+	uint32_t                        msid;
     uint64_t                        frag;
 	uint64_t                        frag_ts;
 } ngx_rtmp_start_hls_slice_t;

@@ -791,16 +791,13 @@ ngx_rtmp_hls_send_start_slice(ngx_rtmp_session_t *s)
 		return NGX_OK;
     }
 
-	for (relay_ctx = lctx->stream->relay_ctx; relay_ctx; relay_ctx = relay_ctx->next) {
-        if (relay_ctx == lctx || relay_ctx->paused || relay_ctx->hls) {
-            continue;
-        }
+	for (relay_ctx = lctx->stream->relay_ctx; relay_ctx; relay_ctx = relay_ctx->relay_next) {
 
 		ngx_log_error(NGX_LOG_ERR, s->connection->log, 0, "send_start_slice %p", relay_ctx);
 
 		rs = relay_ctx->session;
 		if (rs != NULL) {
-			ngx_rtmp_send_start_hls_slice(rs, hctx->frag, hctx->frag_ts);
+			ngx_rtmp_send_start_hls_slice(rs, 1, hctx->frag, hctx->frag_ts);
 		}
 	}
 

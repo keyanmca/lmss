@@ -306,8 +306,8 @@ ngx_rtmp_send_set_buflen(ngx_rtmp_session_t *s, uint32_t msid,
 
 
 ngx_chain_t *
-ngx_rtmp_create_start_hls_slice(ngx_rtmp_session_t *s, uint64_t frag,
-	uint64_t frag_ts)
+ngx_rtmp_create_start_hls_slice(ngx_rtmp_session_t *s, uint32_t msid,
+	uint64_t frag, uint64_t frag_ts)
 {
     ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
                    "create: start_hls_slice frag=%uD, frag_ts=%uD",
@@ -316,6 +316,7 @@ ngx_rtmp_create_start_hls_slice(ngx_rtmp_session_t *s, uint64_t frag,
     {
         NGX_RTMP_UCTL_START(s, NGX_RTMP_MSG_USER, NGX_RTMP_USER_START_HLS_SLICE);
 
+		NGX_RTMP_USER_OUT4(msid);
         NGX_RTMP_USER_OUT8(frag);
 		NGX_RTMP_USER_OUT8(frag_ts);
 
@@ -325,11 +326,11 @@ ngx_rtmp_create_start_hls_slice(ngx_rtmp_session_t *s, uint64_t frag,
 
 
 ngx_int_t
-ngx_rtmp_send_start_hls_slice(ngx_rtmp_session_t *s, uint64_t frag,
-	uint64_t frag_ts)
+ngx_rtmp_send_start_hls_slice(ngx_rtmp_session_t *s, uint32_t msid,
+	uint64_t frag, uint64_t frag_ts)
 {
     return ngx_rtmp_send_shared_packet(s,
-           ngx_rtmp_create_start_hls_slice(s, frag, frag_ts));
+           ngx_rtmp_create_start_hls_slice(s, msid, frag, frag_ts));
 }
 
 
