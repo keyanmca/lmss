@@ -1386,7 +1386,6 @@ ngx_rtmp_hls_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
     if (ctx == NULL) {
         ctx = ngx_pcalloc(s->connection->pool, sizeof(ngx_rtmp_hls_ctx_t));
         ngx_rtmp_set_ctx(s, ctx, ngx_rtmp_hls_module);
-		ctx->retry_evt_msec = 2000;
     }
 
     ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
@@ -1441,10 +1440,6 @@ ngx_rtmp_hls_open_file(ngx_http_request_t *r, ngx_chain_t *out)
 	of.min_uses = clcf->open_file_cache_min_uses;
 	of.errors = clcf->open_file_cache_errors;
 	of.events = clcf->open_file_cache_events;
-
-	if (ngx_http_set_disable_symlinks(r, clcf, &path, &of) != NGX_OK) {
-		return NGX_ERROR;
-	}
 
 	if (ngx_open_cached_file(clcf->open_file_cache, &path, &of, r->pool)
 		!= NGX_OK)
@@ -2203,7 +2198,7 @@ ngx_rtmp_hls_start_hls_slice(ngx_rtmp_session_t *s, ngx_rtmp_start_hls_slice_t *
                ctx->sliced, v->frag, v->frag_ts);
 
 	if (ctx->sliced == 0) {
-		ctx->frag = v->frag + hacf->winfrags + 1;
+		ctx->frag = v->frag + 1;
 		ctx->frag_ts = v->frag_ts;
 		ctx->sliced = 1;
 	}
@@ -2535,15 +2530,21 @@ ngx_rtmp_hls_close_connection(ngx_connection_t *c)
 {
 	ngx_rtmp_session_t		   *s;
 	ngx_rtmp_core_srv_conf_t   *cscf;
+	ngx_rtmp_hls_ctx_t         *ctx;
 
 	s = c->hls ? c->hls_data : c->data;
 	c = s->connection;
 
 	cscf = ngx_rtmp_get_module_srv_conf(s, ngx_rtmp_core_module);
+	ctx  = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
 
     ngx_log_error(NGX_LOG_ERR, c->log, 0, "hls close connection");
 
     ngx_rtmp_fire_event(s, NGX_RTMP_DISCONNECT, NULL, NULL);
+
+	if (ctx->retry_evt.timer_set) {
+		ngx_del_timer(&ctx->retry_evt);
+	}
 
     if (s->ping_evt.timer_set) {
         ngx_del_timer(&s->ping_evt);
@@ -2844,7 +2845,6 @@ ngx_rtmp_hls_retry_m3u8(ngx_event_t *e)
 
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
     if (ctx == NULL) {
-		ngx_del_timer(&ctx->retry_evt);
         return;
     }
 
@@ -2860,7 +2860,7 @@ ngx_rtmp_hls_retry_m3u8(ngx_event_t *e)
 	    e->log = r->connection->log;
 	    e->handler = ngx_rtmp_hls_retry_m3u8;
 
-		ngx_add_timer(e, 2000);
+		ngx_add_timer(e, ctx->retry_evt_msec);
 	}
 
  	ngx_log_debug(NGX_LOG_DEBUG, s->connection->log, 0, "ngx_rtmp_hls_retry_m3u8 callbacked");
@@ -2887,8 +2887,9 @@ ngx_rtmp_hls_retry_m3u8_timer(ngx_rtmp_session_t *s)
 	e->data = s;
     e->log = r->connection->log;
     e->handler = ngx_rtmp_hls_retry_m3u8;
+	ctx->retry_evt_msec = 2000;
 
-	ngx_add_timer(e, 2000);
+	ngx_add_timer(e, ctx->retry_evt_msec);
 
 	ngx_log_debug(NGX_LOG_DEBUG, s->connection->log, 0,
                "ngx_rtmp_hls_retry_m3u8_timer: call ngx_rtmp_hls_retry_m3u8 after %Mms",
