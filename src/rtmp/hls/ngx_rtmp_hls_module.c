@@ -2992,7 +2992,7 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
 	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
               "http_hls handle uri: '%V' args: '%V' r->out: '%d'", &r->uri, &r->args, r->out == NULL);
 
-	if (r->uri_changed) {
+	if (r->hls_uri_changed) {
 		return NGX_CUSTOME;
 	}
 
@@ -3001,7 +3001,7 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
 	}
 
 	if (ngx_rtmp_http_hls_change_uri(r, host, hacf) != NGX_OK) {
-		r->uri_changed = 1;
+		r->hls_uri_changed = 1;
 		goto error;
 	}
 
