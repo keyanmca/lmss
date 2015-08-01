@@ -2848,6 +2848,12 @@ ngx_rtmp_hls_retry_m3u8(ngx_event_t *e)
         return;
     }
 
+	if (ctx->retry_times == 0) {
+		ngx_del_timer(&ctx->retry_evt);
+		ngx_http_finalize_request(r, NGX_ERROR);
+		return;
+	} else ctx->retry_times --;
+
 	opened = ngx_rtmp_hls_open_file(r, &out);
 	if (opened == NGX_OK) {
 		ngx_del_timer(&ctx->retry_evt);
@@ -2862,8 +2868,6 @@ ngx_rtmp_hls_retry_m3u8(ngx_event_t *e)
 
 		ngx_add_timer(e, ctx->retry_evt_msec);
 	}
-
- 	ngx_log_debug(NGX_LOG_DEBUG, s->connection->log, 0, "ngx_rtmp_hls_retry_m3u8 callbacked");
 
 	return;
 }
@@ -2888,6 +2892,7 @@ ngx_rtmp_hls_retry_m3u8_timer(ngx_rtmp_session_t *s)
     e->log = r->connection->log;
     e->handler = ngx_rtmp_hls_retry_m3u8;
 	ctx->retry_evt_msec = 2000;
+	ctx->retry_times = 5;
 
 	ngx_add_timer(e, ctx->retry_evt_msec);
 
@@ -2987,11 +2992,18 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
 	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
               "http_hls handle uri: '%V' args: '%V' r->out: '%d'", &r->uri, &r->args, r->out == NULL);
 
+	if (r->uri_changed) {
+		return NGX_CUSTOME;
+	}
+
 	if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) != NGX_OK) {
 		goto error;
 	}
 
-	ngx_rtmp_http_hls_change_uri(r, host, hacf);
+	if (ngx_rtmp_http_hls_change_uri(r, host, hacf) != NGX_OK) {
+		r->uri_changed = 1;
+		goto error;
+	}
 
 	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
               "http_hls handle uri changed uri: '%V' args: '%V'", &r->uri, &r->args);
