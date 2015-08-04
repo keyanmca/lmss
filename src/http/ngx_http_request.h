@@ -450,8 +450,6 @@ struct ngx_http_request_s {
     /* URI with "/." and on Win32 with "//" */
     unsigned                          complex_uri:1;
 
-	unsigned                          hls_uri_changed:1;
-
     /* URI with "%" */
     unsigned                          quoted_uri:1;
 
@@ -468,6 +466,7 @@ struct ngx_http_request_s {
     unsigned                          valid_unparsed_uri:1;
     unsigned                          uri_changed:1;
     unsigned                          uri_changes:4;
+    unsigned                          hls_uri_changed:1;
 
     unsigned                          request_body_in_single_buf:1;
     unsigned                          request_body_in_file_only:1;

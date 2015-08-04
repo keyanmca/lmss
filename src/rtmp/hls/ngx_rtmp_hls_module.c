@@ -1427,7 +1427,7 @@ ngx_rtmp_hls_open_file(ngx_http_request_t *r, ngx_chain_t *out)
 
 	path.len = last - path.data;
 
-	ngx_log_error(NGX_LOG_INFO, log, 0,
+	ngx_log_error(NGX_LOG_DEBUG, log, 0,
 			"http hls open filename: \"%V\"", &path);
 
 	clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
@@ -2891,14 +2891,10 @@ ngx_rtmp_hls_retry_m3u8_timer(ngx_rtmp_session_t *s)
 	e->data = s;
     e->log = r->connection->log;
     e->handler = ngx_rtmp_hls_retry_m3u8;
-	ctx->retry_evt_msec = 2000;
-	ctx->retry_times = 5;
+	ctx->retry_evt_msec = 1000;
+	ctx->retry_times = 30;
 
 	ngx_add_timer(e, ctx->retry_evt_msec);
-
-	ngx_log_debug(NGX_LOG_DEBUG, s->connection->log, 0,
-               "ngx_rtmp_hls_retry_m3u8_timer: call ngx_rtmp_hls_retry_m3u8 after %Mms",
-               ctx->retry_evt_msec);
 
 	return NGX_OK;
 }
@@ -2989,21 +2985,22 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
         return rc;
     }
 
-	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-              "http_hls handle uri: '%V' args: '%V' r->out: '%d'", &r->uri, &r->args, r->out == NULL);
-
 	if (r->hls_uri_changed) {
+		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                  "http_hls uri has been changed uri: '%V' args: '%V'", &r->uri, &r->args);
 		return NGX_CUSTOME;
 	}
+
+	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+              "http_hls handle uri: '%V' args: '%V' r->out: '%d'", &r->uri, &r->args, r->out == NULL);
 
 	if (ngx_rtmp_http_hls_match_app(r, t, &cscf, &cacf, &cf_port, &hacf, &host, &stream_name) != NGX_OK) {
 		goto error;
 	}
 
 	if (ngx_rtmp_http_hls_change_uri(r, host, hacf) != NGX_OK) {
-		r->hls_uri_changed = 1;
 		goto error;
-	}
+	} else r->hls_uri_changed = 1;
 
 	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
               "http_hls handle uri changed uri: '%V' args: '%V'", &r->uri, &r->args);
