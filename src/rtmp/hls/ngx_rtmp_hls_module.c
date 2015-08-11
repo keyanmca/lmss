@@ -2783,6 +2783,8 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t t, ngx_str_t host,
         return NGX_ERROR;
     }
 
+	r->read_event_handler = ngx_http_test_reading;
+
 	clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
 	if (clcf == NULL) {
         return NGX_ERROR;
@@ -3155,7 +3157,7 @@ ngx_rtmp_http_hls_match_app(ngx_http_request_t *r, ngx_int_t t,
 
 							*out_cscf = *cscf;
 							*out_cacf = *cacf;
-							*out_cfport = &cf_ports[i];
+							*out_cfport = &cf_ports[0];
 							*out_hacf = hacf;
 							*out_host = srna->name;
 							*out_stream_name = name;

@@ -1,0 +1,5 @@
+---- proxy_pass Matches (4 in 1 files) ----
+Ngx_http_proxy_module.c (src\http\modules):    { ngx_string("proxy_pass"),
+Ngx_http_proxy_module.c (src\http\modules):                               "\"proxy_pass\" cannot have URI part in "
+Ngx_http_proxy_module.c (src\http\modules):                               "with \"proxy_pass\" directive with variables");
+Ngx_http_proxy_module.c (src\http\modules):                               "after the \"proxy_pass\" directive");
