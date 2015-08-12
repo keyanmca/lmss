@@ -1581,6 +1581,10 @@ ngx_rtmp_relay_close(ngx_rtmp_session_t *s)
         ngx_del_timer(&ctx->push_evt);
     }
 
+	if (ctx->hold_evt.timer_set) {
+        ngx_del_timer(&ctx->hold_evt);
+    }
+
     for (cctx = &ctx->play; *cctx; cctx = &(*cctx)->next) {
         (*cctx)->publish = NULL;
         ngx_log_debug2(NGX_LOG_DEBUG_RTMP, (*cctx)->session->connection->log,

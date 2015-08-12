@@ -994,7 +994,7 @@ ngx_rtmp_notify_update_create(ngx_rtmp_session_t *s, void *arg,
 {
     ngx_chain_t                    *pl;
     ngx_buf_t                      *b;
-    size_t                          name_len, args_len;
+    size_t                          name_len, args_len, srv_len;
     ngx_rtmp_notify_ctx_t          *ctx;
     ngx_str_t                       sfx;
 
@@ -1016,14 +1016,13 @@ ngx_rtmp_notify_update_create(ngx_rtmp_session_t *s, void *arg,
 
     name_len = ctx ? ngx_strlen(ctx->name) : 0;
     args_len = ctx ? ngx_strlen(ctx->args) : 0;
-
+    srv_len = s->host_in.len;
     b = ngx_create_temp_buf(pool,
                             sizeof("&call=update") + sfx.len +
                             sizeof("&time=") + NGX_TIME_T_LEN +
                             sizeof("&timestamp=") + NGX_INT32_LEN +
+                            sizeof("&srv=") + srv_len +
                             sizeof("&name=") + name_len * 3 +
-                            //sizeof("&flags=") + NGX_INT32_LEN + //added by Edward.Wu
-                            //sizeof("&updatetimeout=") + NGX_INT32_LEN + //added by Edward.Wu
                             1 + args_len);
     if (b == NULL) {
         return NULL;
@@ -1043,7 +1042,14 @@ ngx_rtmp_notify_update_create(ngx_rtmp_session_t *s, void *arg,
     b->last = ngx_cpymem(b->last, (u_char *) "&timestamp=",
                          sizeof("&timestamp=") - 1);
     b->last = ngx_sprintf(b->last, "%D", s->current_time);
-
+	
+	if (srv_len) {
+		
+		b->last = ngx_cpymem(b->last, (u_char *) "&srv=",
+							 sizeof("&srv=") - 1);
+		b->last = ngx_cpymem(b->last, (char *)s->host_in.data, s->host_in.len);
+	}
+	
     if (name_len) {
         b->last = ngx_cpymem(b->last, (u_char*) "&name=", sizeof("&name=") - 1);
         b->last = (u_char*) ngx_escape_uri(b->last, ctx->name, name_len,

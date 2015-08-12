@@ -37,18 +37,18 @@ typedef struct {
 
 
 typedef struct ngx_rtmp_hls_ctx_s {
-	ngx_rtmp_session_t                 *session;
+    ngx_rtmp_session_t                 *session;
     ngx_rtmp_hls_stream_t              *hls_stream;
     ngx_rtmp_hls_ctx_t                 *next;
-	void                               *backup_data;
-	unsigned                            backup_log_error;
+    void                               *backup_data;
+    unsigned                            backup_log_error;
 
     unsigned                            publishing:1;
     ngx_uint_t                          ndropped;
 
     unsigned                            opened:1;
-	unsigned                            request_type:1;
-	unsigned                            sliced:1;
+    unsigned                            request_type:1;
+    unsigned                            sliced:1;
 
     ngx_file_t                          file;
 
@@ -58,7 +58,7 @@ typedef struct ngx_rtmp_hls_ctx_s {
     ngx_str_t                           var_playlist_bak;
     ngx_str_t                           stream;
     ngx_str_t                           name;
-	ngx_str_t                           serv_name;
+    ngx_str_t                           serv_name;
 
     uint64_t                            frag;
     uint64_t                            frag_ts;
@@ -75,9 +75,11 @@ typedef struct ngx_rtmp_hls_ctx_s {
     uint64_t                            aframe_pts;
 
     ngx_rtmp_hls_variant_t             *var;
-	ngx_event_t                         retry_evt;
+    uint32_t                            base_timestamp;
+    unsigned                            is_first_packge:1;
+    ngx_event_t                         retry_evt;
     ngx_msec_t                          retry_evt_msec;
-	ngx_uint_t                          retry_times;
+    ngx_uint_t                          retry_times;
 };
 
 
@@ -106,6 +108,7 @@ typedef struct {
     ngx_uint_t                          winfrags;
     ngx_flag_t                          continuous;
     ngx_flag_t                          nested;
+    ngx_flag_t                          slicing_way;  //0: acording to key frame, 1:acording to timestamp, default:0
     ngx_str_t                           path;
     ngx_uint_t                          naming;
     ngx_uint_t                          slicing;

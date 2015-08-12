@@ -295,7 +295,7 @@ ngx_rtmp_netcall_close(ngx_connection_t *cc)
     ngx_rtmp_netcall_ctx_t             *ctx;
     ngx_buf_t                          *b;
 
-    cs = cc->hls ? cc->hls_data : cc->data;
+    cs = cc->data;
 
     if (cc->destroyed) {
         return;
@@ -353,7 +353,7 @@ ngx_rtmp_netcall_recv(ngx_event_t *rev)
     ngx_buf_t                          *b;
 
     cc = rev->data;
-    cs = cc->hls ? cc->hls_data : cc->data;
+    cs = cc->data;
 
     if (cc->destroyed) {
         return;
@@ -447,7 +447,7 @@ ngx_rtmp_netcall_send(ngx_event_t *wev)
     ngx_chain_t                        *cl;
 
     cc = wev->data;
-    cs = cc->hls ? cc->hls_data : cc->data;
+    cs = cc->data;
 
     if (cc->destroyed) {
         return;

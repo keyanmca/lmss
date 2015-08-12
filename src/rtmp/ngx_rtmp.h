@@ -89,9 +89,9 @@ typedef struct {
 
 /* relay_type, added by Edward.Wu */
 #define NGX_NONE_RELAY                     0
-#define NGX_REMOTE_RELAY                   1
-#define NGX_LOCAL_RELAY                    2
-#define NGX_CLUSTER_RELAY                  3
+#define NGX_CLUSTER_RELAY                  1
+#define NGX_REMOTE_RELAY                   2
+#define NGX_LOCAL_RELAY                    3
 
 
 /* RTMP message types */
