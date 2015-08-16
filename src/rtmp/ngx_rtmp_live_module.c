@@ -114,6 +114,13 @@ static ngx_command_t  ngx_rtmp_live_commands[] = {
       offsetof(ngx_rtmp_live_app_conf_t, idle_timeout),
       NULL },
 
+	{ ngx_string("check_timeout"),
+      NGX_RTMP_MAIN_CONF|NGX_RTMP_SRV_CONF|NGX_RTMP_APP_CONF|NGX_CONF_TAKE1,
+      ngx_rtmp_live_set_msec_slot,
+      NGX_RTMP_APP_CONF_OFFSET,
+      offsetof(ngx_rtmp_live_app_conf_t, check_timeout),
+      NULL },
+
       ngx_null_command
 };
 
@@ -167,6 +174,7 @@ ngx_rtmp_live_create_app_conf(ngx_conf_t *cf)
     lacf->publish_notify = NGX_CONF_UNSET;
     lacf->play_restart = NGX_CONF_UNSET;
     lacf->idle_streams = NGX_CONF_UNSET;
+    lacf->check_timeout = NGX_CONF_UNSET;
 
     return lacf;
 }
@@ -189,6 +197,7 @@ ngx_rtmp_live_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_value(conf->publish_notify, prev->publish_notify, 0);
     ngx_conf_merge_value(conf->play_restart, prev->play_restart, 0);
     ngx_conf_merge_value(conf->idle_streams, prev->idle_streams, 1);
+    ngx_conf_merge_value(conf->check_timeout, prev->check_timeout, 2000);
 
     conf->pool = ngx_create_pool(4096, &cf->cycle->new_log);
     if (conf->pool == NULL) {
@@ -262,7 +271,7 @@ ngx_rtmp_live_get_stream(ngx_rtmp_session_t *s, u_char *name, int create)
     ngx_memcpy((*stream)->name, name,
             ngx_min(sizeof((*stream)->name) - 1, len));
     (*stream)->epoch = ngx_current_msec;
-    (*stream)->check_evt_msec = 5000;
+    (*stream)->check_evt_msec = lacf->check_timeout;
 
     return stream;
 }
@@ -300,13 +309,14 @@ ngx_rtmp_live_checking_callback(ngx_event_t *e)
     e->log = player->connection->log;
     e->handler = ngx_rtmp_live_checking_callback;
 
-    ngx_add_timer(e, stream->check_evt_msec);
+    ngx_add_timer(&stream->check_evt, stream->check_evt_msec);
 }
 
 
 static ngx_int_t
 ngx_rtmp_live_checking_publish(ngx_rtmp_session_t *s, ngx_rtmp_live_stream_t *stream)
 {
+    ngx_rtmp_live_ctx_t            *ctx;
     ngx_rtmp_session_t             *player;
     ngx_event_t                    *e;
 
@@ -317,20 +327,26 @@ ngx_rtmp_live_checking_publish(ngx_rtmp_session_t *s, ngx_rtmp_live_stream_t *st
         return NGX_OK;
     }
 
-	player = stream->ctx->session;
+    player = NULL;
+    for (ctx = stream->ctx; ctx; ctx = ctx->next) {
+        if (!ctx->session->hls) {
+            player = ctx->session;
+        }
+    }
+
+    // rtmp player ONLY.
+    if (player == NULL) {
+        return NGX_ERROR;
+    }
 
     e = &stream->check_evt;
     e->data = stream;
     e->log = player->connection->log;
     e->handler = ngx_rtmp_live_checking_callback;
 
-    ngx_add_timer(e, stream->check_evt_msec);
+    ngx_add_timer(&stream->check_evt, stream->check_evt_msec);
 
-    ngx_log_debug(NGX_LOG_DEBUG, s->connection->log, 0,
-               "ngx_rtmp_live_publish_checking: call ngx_rtmp_notify_checking_publish after %Mms",
-               stream->check_evt_msec);
     return NGX_OK;
-    
 }
 
 

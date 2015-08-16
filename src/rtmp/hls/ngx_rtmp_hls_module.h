@@ -108,7 +108,7 @@ typedef struct {
     ngx_uint_t                          winfrags;
     ngx_flag_t                          continuous;
     ngx_flag_t                          nested;
-    ngx_flag_t                          slicing_way;  //0: acording to key frame, 1:acording to timestamp, default:0
+    ngx_flag_t                          slicing_way;  //0: according to key frame, 1:according to timestamp, default:0
     ngx_str_t                           path;
     ngx_uint_t                          naming;
     ngx_uint_t                          slicing;

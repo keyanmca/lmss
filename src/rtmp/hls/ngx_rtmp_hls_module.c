@@ -930,6 +930,35 @@ ngx_rtmp_hls_open_fragment(ngx_rtmp_session_t *s, uint64_t ts,
 
 
 static void
+ngx_rtmp_hls_restore_m3u8(ngx_rtmp_session_t *s)
+{
+    ngx_fd_t                        fd;
+    ngx_rtmp_hls_ctx_t             *ctx;
+    ngx_rtmp_hls_app_conf_t        *hacf;
+
+	hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
+    ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
+
+    fd = ngx_open_file(ctx->playlist.data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
+
+    if (fd == NGX_INVALID_FILE) {
+        return;
+    }
+
+	ngx_close_file(fd);
+
+	if (ngx_rtmp_hls_rename_file(ctx->playlist.data, ctx->playlist_bak.data)
+        == NGX_FILE_ERROR)
+    {
+        ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
+                      "hls: rename failed: '%V'->'%V'",
+                      &ctx->playlist, &ctx->playlist_bak);
+        return;
+    }
+}
+
+
+static void
 ngx_rtmp_hls_restore_stream(ngx_rtmp_session_t *s)
 {
     ngx_rtmp_hls_ctx_t             *ctx;
@@ -951,7 +980,7 @@ ngx_rtmp_hls_restore_stream(ngx_rtmp_session_t *s)
 
     ngx_str_set(&file.name, "m3u8");
 
-    file.fd = ngx_open_file(ctx->playlist.data, NGX_FILE_RDONLY, NGX_FILE_OPEN,
+    file.fd = ngx_open_file(ctx->playlist_bak.data, NGX_FILE_RDONLY, NGX_FILE_OPEN,
                             0);
     if (file.fd == NGX_INVALID_FILE) {
         return;
@@ -1598,6 +1627,8 @@ ngx_rtmp_hls_close_stream(ngx_rtmp_session_t *s, ngx_rtmp_close_stream_t *v)
 
     ngx_rtmp_hls_close_fragment(s);
 
+	ngx_rtmp_hls_restore_m3u8(s);
+
 next:
     return next_close_stream(s, v);
 }
@@ -1687,7 +1718,7 @@ ngx_rtmp_hls_update_fragment(ngx_rtmp_session_t *s, uint64_t ts,
         d = (int64_t) (ts - ctx->frag_ts);
 
         if (d > (int64_t) hacf->max_fraglen * 90 || d < -90000) {
-            ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,
+            ngx_log_debug1(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                           "hls: force fragment split: %.3f sec, ", d / 90000.);
             force = 1;
 
@@ -2198,6 +2229,8 @@ ngx_rtmp_hls_stream_eof(ngx_rtmp_session_t *s, ngx_rtmp_stream_eof_t *v)
     ngx_rtmp_hls_flush_audio(s);
 
     ngx_rtmp_hls_close_fragment(s);
+
+	ngx_rtmp_hls_restore_m3u8(s);
 
     return next_stream_eof(s, v);
 }
@@ -3072,8 +3105,8 @@ ngx_rtmp_http_hls_handler(ngx_http_request_t *r)
 		opened = ngx_rtmp_hls_open_file(r, &out);
 
 		ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-              "http_hls open file finished rc: '%d' request_type:'%s'",
-              rc, t == NGX_RTMP_HTTP_HLS_ACCESS_M3U8 ? "m3u8" : "ts");
+              "http_hls open file finished opened: '%d' request_type:'%s'",
+              opened, t == NGX_RTMP_HTTP_HLS_ACCESS_M3U8 ? "m3u8" : "ts");
 	}
 
 	if (s != NULL) {

@@ -224,7 +224,7 @@ ngx_rtmp_relay_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_msec_value(conf->pull_reconnect, prev->pull_reconnect,
             3000);
 	ngx_conf_merge_msec_value(conf->hold_timeout, prev->hold_timeout,
-            10000);
+            60 * 1000);
 
     return NGX_CONF_OK;
 }
