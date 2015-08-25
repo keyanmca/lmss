@@ -316,8 +316,6 @@ ngx_rtmp_live_checking_callback(ngx_event_t *e)
 static ngx_int_t
 ngx_rtmp_live_checking_publish(ngx_rtmp_session_t *s, ngx_rtmp_live_stream_t *stream)
 {
-	//modify for warning
-    //ngx_rtmp_live_ctx_t            *ctx;
     ngx_rtmp_session_t             *player;
     ngx_event_t                    *e;
 

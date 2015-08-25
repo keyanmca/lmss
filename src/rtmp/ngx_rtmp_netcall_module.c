@@ -359,6 +359,7 @@ ngx_rtmp_netcall_recv(ngx_event_t *rev)
 
     cc = rev->data;
     cs = cc->data;
+
 	if (cs->hls) {
 		r = cs->arg;
 		hc = r->connection;
