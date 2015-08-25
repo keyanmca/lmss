@@ -21,9 +21,10 @@ static ngx_int_t ngx_rtmp_hdl_postconfiguration(ngx_conf_t *cf);
 static void * ngx_rtmp_hdl_create_loc_conf(ngx_conf_t *cf);
 static char * ngx_rtmp_hdl_merge_loc_conf(ngx_conf_t *cf,
         void *parent, void *child);
-static ngx_int_t ngx_rtmp_hdl_write_handler(ngx_http_request_t *r);
+//modify for warning
+//static ngx_int_t ngx_rtmp_hdl_write_handler(ngx_http_request_t *r);
 
-static time_t                       start_time;
+//static time_t                       start_time;
 
 
 #define NGX_RTMP_HDL_ALL           0xff
@@ -126,11 +127,12 @@ ngx_rtmp_hdl_handler(ngx_http_request_t *r)
     ngx_rtmp_hdl_loc_conf_t       *slcf;
     ngx_rtmp_core_main_conf_t      *cmcf;
     ngx_rtmp_core_srv_conf_t      **cscf;
-    ngx_chain_t                    *cl, *l, **ll, ***lll;
+   //modify for warning
+	// ngx_chain_t                    *cl, *l, **ll, ***lll;
     size_t                          n;
-    off_t                           len;
-    static u_char                   tbuf[NGX_TIME_T_LEN];
-    static u_char                   nbuf[NGX_INT_T_LEN];
+   // off_t                           len;
+   // static u_char                   tbuf[NGX_TIME_T_LEN];
+   // static u_char                   nbuf[NGX_INT_T_LEN];
 
     slcf = ngx_http_get_module_loc_conf(r, ngx_rtmp_hdl_module);
     if (slcf->hdl == 0) {
@@ -143,8 +145,8 @@ ngx_rtmp_hdl_handler(ngx_http_request_t *r)
     }
 
     ngx_int_t rc;
-    ngx_buf_t *b;
-    ngx_chain_t out;
+   // ngx_buf_t *b;
+  //  ngx_chain_t out;
     ngx_rtmp_hdl_loc_conf_t *elcf;
     elcf = ngx_http_get_module_loc_conf(r, ngx_rtmp_hdl_module);
     if (slcf->hdl == 0) {
@@ -155,7 +157,7 @@ ngx_rtmp_hdl_handler(ngx_http_request_t *r)
     {
         return NGX_HTTP_NOT_ALLOWED;
     }
-    ngx_str_t response = ngx_string("Hello World!!!");  
+    //ngx_str_t response = ngx_string("Hello World!!!");  
 
 	//http header
     r->headers_out.content_type.len = sizeof("text/html") - 1;
@@ -186,7 +188,7 @@ ngx_rtmp_hdl_handler(ngx_http_request_t *r)
 		cacf = (*cscf)->applications.elts;
 		for (n_cacf = 0; n_cacf < (*cscf)->applications.nelts; ++n_cacf, ++cacf) {
 			ngx_rtmp_live_app_conf_t *lacf = (*cacf)->app_conf[ngx_rtmp_live_module.ctx_index];
-			size_t n_lacf ;
+			ngx_int_t n_lacf ;
 			for ( n_lacf = 0; n_lacf < lacf->nbuckets; ++n_lacf) {
 			    ngx_rtmp_live_stream_t *stream;
 				for (stream = lacf->streams[n_lacf]; stream; stream = stream->next) {

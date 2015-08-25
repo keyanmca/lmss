@@ -2897,6 +2897,10 @@ ngx_http_set_keepalive(ngx_http_request_t *r)
     /* guard against recursive call from ngx_http_finalize_connection() */
     r->keepalive = 0;
 
+	if (r->keepalived_handler) {
+		r->keepalived_handler(r);
+	}
+
     ngx_http_free_request(r, 0);
 
     c->data = hc;

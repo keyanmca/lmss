@@ -82,6 +82,7 @@ static ngx_command_t  ngx_rtmp_core_commands[] = {
       NGX_RTMP_SRV_CONF_OFFSET,
       offsetof(ngx_rtmp_core_srv_conf_t, up_server_name),
 	  NULL },
+
 	{ ngx_string("rtmp_billing"),
 	  NGX_RTMP_MAIN_CONF|NGX_CONF_TAKE1,
       ngx_conf_set_flag_slot,
@@ -339,43 +340,44 @@ ngx_rtmp_core_init_main_conf(ngx_conf_t *cf, void *conf)
 static void *
 ngx_rtmp_core_create_srv_conf(ngx_conf_t *cf)
 {
-    ngx_rtmp_core_srv_conf_t   *conf;
+    ngx_rtmp_core_srv_conf_t   *cscf;
 
-    conf = ngx_pcalloc(cf->pool, sizeof(ngx_rtmp_core_srv_conf_t));
-    if (conf == NULL) {
+    cscf = ngx_pcalloc(cf->pool, sizeof(ngx_rtmp_core_srv_conf_t));
+    if (cscf == NULL) {
         return NULL;
     }
 
-    if (ngx_array_init(&conf->applications, cf->pool, 4,
+    if (ngx_array_init(&cscf->applications, cf->pool, 4,
                        sizeof(ngx_rtmp_core_app_conf_t *))
         != NGX_OK)
     {
         return NULL;
     }
 
-	if (ngx_array_init(&conf->server_names, cf->temp_pool, 4,
+	if (ngx_array_init(&cscf->server_names, cf->temp_pool, 4,
                        sizeof(ngx_rtmp_server_name_t))
         != NGX_OK)
     {
         return NULL;
     }
-    conf->up_server_name.len = 0;
-    conf->timeout = NGX_CONF_UNSET_MSEC;
-    conf->ping = NGX_CONF_UNSET_MSEC;
-    conf->ping_timeout = NGX_CONF_UNSET_MSEC;
-    conf->so_keepalive = NGX_CONF_UNSET;
-    conf->max_streams = NGX_CONF_UNSET;
-    conf->chunk_size = NGX_CONF_UNSET;
-    conf->ack_window = NGX_CONF_UNSET_UINT;
-    conf->max_message = NGX_CONF_UNSET_SIZE;
-    conf->out_queue = NGX_CONF_UNSET_SIZE;
-    conf->out_cork = NGX_CONF_UNSET_SIZE;
-    conf->play_time_fix = NGX_CONF_UNSET;
-    conf->publish_time_fix = NGX_CONF_UNSET;
-    conf->buflen = NGX_CONF_UNSET_MSEC;
-    conf->busy = NGX_CONF_UNSET;
 
-    return conf;
+    cscf->up_server_name.len = 0;
+    cscf->timeout = NGX_CONF_UNSET_MSEC;
+    cscf->ping = NGX_CONF_UNSET_MSEC;
+    cscf->ping_timeout = NGX_CONF_UNSET_MSEC;
+    cscf->so_keepalive = NGX_CONF_UNSET;
+    cscf->max_streams = NGX_CONF_UNSET;
+    cscf->chunk_size = NGX_CONF_UNSET;
+    cscf->ack_window = NGX_CONF_UNSET_UINT;
+    cscf->max_message = NGX_CONF_UNSET_SIZE;
+    cscf->out_queue = NGX_CONF_UNSET_SIZE;
+    cscf->out_cork = NGX_CONF_UNSET_SIZE;
+    cscf->play_time_fix = NGX_CONF_UNSET;
+    cscf->publish_time_fix = NGX_CONF_UNSET;
+    cscf->buflen = NGX_CONF_UNSET_MSEC;
+    cscf->busy = NGX_CONF_UNSET;
+
+    return cscf;
 }
 
 
@@ -385,6 +387,7 @@ ngx_rtmp_core_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_rtmp_core_srv_conf_t *prev = parent;
     ngx_rtmp_core_srv_conf_t *conf = child;
     ngx_rtmp_server_name_t  *sn, *sni;
+	//ngx_str_t                name;
     ngx_array_t server_names_tmp;
     ngx_uint_t n = 0;
 
@@ -467,7 +470,7 @@ ngx_rtmp_core_merge_srv_conf(ngx_conf_t *cf, void *parent, void *child)
             ngx_str_set(&sni->name, "");
         }
     }
-
+	
     return NGX_CONF_OK;
 }
 
@@ -994,7 +997,7 @@ ngx_rtmp_core_server_name(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
         } else {
             sn->name = value[i];
         }
-        
+
         if (value[i].data[0] != '~') {
             ngx_strlow(sn->name.data, sn->name.data, sn->name.len);
             continue;

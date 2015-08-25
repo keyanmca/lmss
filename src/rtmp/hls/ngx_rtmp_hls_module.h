@@ -12,14 +12,13 @@
 #include <ngx_core.h>
 #include <ngx_http.h>
 #include <ngx_rtmp_cmd_module.h>
+#include <ngx_rtmp_relay_module.h>
+#include <ngx_rtmp_netcall_module.h>
 #include "ngx_rtmp.h"
 
 typedef struct ngx_rtmp_hls_ctx_s ngx_rtmp_hls_ctx_t;
 typedef struct ngx_rtmp_hls_stream_s ngx_rtmp_hls_stream_t;
-
-
-#define NGX_RTMP_HTTP_HLS_ACCESS_TS   0
-#define NGX_RTMP_HTTP_HLS_ACCESS_M3U8 1
+typedef struct ngx_rtmp_hls_session_s ngx_rtmp_hls_session_t;
 
 
 typedef struct {
@@ -36,29 +35,30 @@ typedef struct {
 } ngx_rtmp_hls_variant_t;
 
 
-typedef struct ngx_rtmp_hls_ctx_s {
-	ngx_rtmp_session_t                 *session;
-    ngx_rtmp_hls_stream_t              *hls_stream;
+struct ngx_rtmp_hls_ctx_s {
+    ngx_rtmp_session_t                 *session;
     ngx_rtmp_hls_ctx_t                 *next;
-	void                               *backup_data;
-	unsigned                            backup_log_error;
+	ngx_rtmp_hls_stream_t              *hls_stream;
+	ngx_rtmp_hls_session_t             *hls_session;
 
-    unsigned                            publishing:1;
-    ngx_uint_t                          ndropped;
+	unsigned                            publisher:1;
 
     unsigned                            opened:1;
-	unsigned                            request_type:1;
-	unsigned                            sliced:1;
+    unsigned                            sliced:1;
 
     ngx_file_t                          file;
 
+	ngx_str_t                           relay_url;
+	ngx_str_t                           relay_uri;
+	ngx_str_t                           relay_vhost;
+	ngx_str_t                           relay_host;
     ngx_str_t                           playlist;
     ngx_str_t                           playlist_bak;
     ngx_str_t                           var_playlist;
     ngx_str_t                           var_playlist_bak;
     ngx_str_t                           stream;
     ngx_str_t                           name;
-	ngx_str_t                           serv_name;
+    ngx_str_t                           serv_name;
 
     uint64_t                            frag;
     uint64_t                            frag_ts;
@@ -75,9 +75,11 @@ typedef struct ngx_rtmp_hls_ctx_s {
     uint64_t                            aframe_pts;
 
     ngx_rtmp_hls_variant_t             *var;
-	ngx_event_t                         retry_evt;
+    uint32_t                            base_timestamp;
+    unsigned                            is_first_packge:1;
+    ngx_event_t                         retry_evt;
     ngx_msec_t                          retry_evt_msec;
-	ngx_uint_t                          retry_times;
+    ngx_int_t                           retry_times;
 };
 
 
@@ -85,18 +87,20 @@ struct ngx_rtmp_hls_stream_s {
     u_char                              name[NGX_RTMP_MAX_NAME];
     ngx_rtmp_hls_stream_t              *next;
     ngx_rtmp_hls_ctx_t                 *ctx;
-    ngx_rtmp_bandwidth_t                bw_out;
-    unsigned                            publishing:1;
-	ngx_msec_t                          epoch;
+};
+
+
+struct ngx_rtmp_hls_session_s {
+    ngx_chain_t                        *out;
+    ngx_msec_t                          timeout;
 };
 
 
 typedef struct {
 	ngx_int_t                           nbuckets;
-    ngx_rtmp_hls_stream_t             **streams;
-    ngx_flag_t                          idle_streams;
+    ngx_rtmp_hls_stream_t             **hls_streams;
     ngx_pool_t                         *pool;
-    ngx_rtmp_hls_stream_t              *free_streams;
+	ngx_rtmp_hls_stream_t              *free_hls_streams;
     ngx_flag_t                          hls;
     ngx_msec_t                          fraglen;
     ngx_msec_t                          max_fraglen;
@@ -106,6 +110,7 @@ typedef struct {
     ngx_uint_t                          winfrags;
     ngx_flag_t                          continuous;
     ngx_flag_t                          nested;
+    ngx_flag_t                          slicing_way;  //0: according to key frame, 1:according to timestamp, default:0
     ngx_str_t                           path;
     ngx_uint_t                          naming;
     ngx_uint_t                          slicing;
@@ -118,6 +123,7 @@ typedef struct {
     ngx_str_t                           base_url;
     ngx_int_t                           granularity;
 } ngx_rtmp_hls_app_conf_t;
+
 
 #endif /* _NGX_RTMP_HLS_H_INCLUDED_ */
 

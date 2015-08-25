@@ -87,11 +87,14 @@ typedef struct {
 
 #define NGX_RTMP_DEFAULT_CHUNK_SIZE     128
 
-/* relay_type, added by Edward.Wu */
-#define NGX_NONE_RELAY                     0
-#define NGX_REMOTE_RELAY                   1
-#define NGX_LOCAL_RELAY                    2
-#define NGX_CLUSTER_RELAY                  3
+#define NGX_NONE_HLS_PLAY               0
+#define NGX_TS_HLS_PLAY                 1
+#define NGX_M3U8_HLS_PLAY               2
+
+#define NGX_NONE_RELAY                  0
+#define NGX_CLUSTER_RELAY               1
+#define NGX_REMOTE_RELAY                2
+#define NGX_LOCAL_RELAY                 3
 
 
 /* RTMP message types */
@@ -369,13 +372,15 @@ typedef struct {
     unsigned                static_relay:1;
 
 	/* hls play */
-	unsigned                hls:1;
-	void                   *rdata;
+	unsigned                hls:2;
+	void                   *r;
 
     /* auto-pull? */
     ngx_uint_t              relay_type;
 
-    ngx_uint_t              update_fail_cnt;
+    //ngx_uint_t              update_fail_cnt;
+    //modify for warning
+	ngx_flag_t              update_fail_cnt;
 
     /* input stream 0 (reserved by RTMP spec)
      * is used as free chain link */

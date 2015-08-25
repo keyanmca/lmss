@@ -42,6 +42,7 @@ typedef struct ngx_rtmp_netcall_session_s {
     ngx_chain_t                                *out;
     ngx_msec_t                                  timeout;
     unsigned                                    detached:1;
+	unsigned                                    hls:1;
     size_t                                      bufsize;
 } ngx_rtmp_netcall_session_t;
 
@@ -231,6 +232,7 @@ ngx_rtmp_netcall_create(ngx_rtmp_session_t *s, ngx_rtmp_netcall_init_t *ci)
     cs->timeout = nscf->timeout;
     cs->bufsize = nscf->bufsize;
     cs->url = ci->url;
+	cs->hls = ci->hls;
     cs->session = s;
     cs->filter = ci->filter;
     cs->sink = ci->sink;
@@ -294,8 +296,9 @@ ngx_rtmp_netcall_close(ngx_connection_t *cc)
     ngx_rtmp_session_t                 *s;
     ngx_rtmp_netcall_ctx_t             *ctx;
     ngx_buf_t                          *b;
+	//ngx_int_t                           rc;
 
-    cs = cc->hls ? cc->hls_data : cc->data;
+    cs = cc->data;
 
     if (cc->destroyed) {
         return;
@@ -322,9 +325,10 @@ ngx_rtmp_netcall_close(ngx_connection_t *cc)
             }
         }
 
-        if (cs->handle && cs->handle(s, cs->arg, cs->in) != NGX_OK) {
+		if (cs->handle && cs->handle(s, cs->arg, cs->in) != NGX_OK) {
             ngx_rtmp_finalize_session(s);
         }
+
     }
 
     pool = cc->pool;
@@ -347,13 +351,18 @@ static void
 ngx_rtmp_netcall_recv(ngx_event_t *rev)
 {
     ngx_rtmp_netcall_session_t         *cs;
-    ngx_connection_t                   *cc;
+	ngx_http_request_t                 *r;
+    ngx_connection_t                   *cc = NULL, *hc = NULL;
     ngx_chain_t                        *cl;
     ngx_int_t                           n;
     ngx_buf_t                          *b;
 
     cc = rev->data;
-    cs = cc->hls ? cc->hls_data : cc->data;
+    cs = cc->data;
+	if (cs->hls) {
+		r = cs->arg;
+		hc = r->connection;
+	}
 
     if (cc->destroyed) {
         return;
@@ -386,7 +395,7 @@ ngx_rtmp_netcall_recv(ngx_event_t *rev)
                 b->pos = b->last = b->start;
 
             } else {
-                cl = ngx_alloc_chain_link(cc->pool);
+                cl = ngx_alloc_chain_link(cs->hls ? hc->pool : cc->pool);
                 if (cl == NULL) {
                     ngx_rtmp_netcall_close(cc);
                     return;
@@ -394,7 +403,7 @@ ngx_rtmp_netcall_recv(ngx_event_t *rev)
 
                 cl->next = NULL;
 
-                cl->buf = ngx_create_temp_buf(cc->pool, cs->bufsize);
+                cl->buf = ngx_create_temp_buf(cs->hls ? hc->pool : cc->pool, cs->bufsize);
                 if (cl->buf == NULL) {
                     ngx_rtmp_netcall_close(cc);
                     return;
@@ -447,7 +456,7 @@ ngx_rtmp_netcall_send(ngx_event_t *wev)
     ngx_chain_t                        *cl;
 
     cc = wev->data;
-    cs = cc->hls ? cc->hls_data : cc->data;
+    cs = cc->data;
 
     if (cc->destroyed) {
         return;
@@ -572,10 +581,11 @@ ngx_rtmp_netcall_http_format_session(ngx_rtmp_session_t *s, ngx_pool_t *pool)
     ngx_chain_t                    *cl;
     ngx_buf_t                      *b;
     ngx_str_t                      *addr_text;
-	struct sockaddr                *sa;
-	struct sockaddr_in             *sin;
-	in_port_t                       port;
-	ngx_rtmp_listen_t              *ls;
+//	struct sockaddr                *sa;
+//	struct sockaddr_in             *sin;
+	in_port_t                       port = 0;
+	//modify for warning
+	//ngx_rtmp_listen_t              *ls;
 
 	cmcf = ngx_rtmp_get_module_main_conf(s, ngx_rtmp_core_module);
 

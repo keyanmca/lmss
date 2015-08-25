@@ -124,8 +124,6 @@ ngx_rbtree_insert_timer_value(ngx_rbtree_node_t *temp, ngx_rbtree_node_t *node,
     ngx_rbtree_node_t *sentinel)
 {
     ngx_rbtree_node_t  **p;
-    ngx_rbtree_node_t *t = temp;
-    
 
     for ( ;; ) {
 
@@ -162,7 +160,6 @@ ngx_rbtree_delete(ngx_thread_volatile ngx_rbtree_t *tree,
 {
     ngx_uint_t           red;
     ngx_rbtree_node_t  **root, *sentinel, *subst, *temp, *w;
-    ngx_uint_t           error;
 
     /* a binary tree delete */
 

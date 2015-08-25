@@ -224,7 +224,7 @@ ngx_rtmp_relay_merge_app_conf(ngx_conf_t *cf, void *parent, void *child)
     ngx_conf_merge_msec_value(conf->pull_reconnect, prev->pull_reconnect,
             3000);
 	ngx_conf_merge_msec_value(conf->hold_timeout, prev->hold_timeout,
-            10000);
+            60 * 1000);
 
     return NGX_CONF_OK;
 }
@@ -425,8 +425,23 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
         goto clear;
     }
 
+	if (ngx_rtmp_relay_copy_str(pool, &rctx->h_host, &target->url.h_host) != NGX_OK) {
+        ngx_log_error(NGX_LOG_INFO, racf->log, 0,
+                "slot=%i, name=%V, ngx_rtmp_relay_create_connection: ngx_rtmp_relay_copy_str failure.",
+                ngx_process_slot, name);
+        goto clear;
+    }
+
+	if (ngx_rtmp_relay_copy_str(pool, &rctx->host, &target->url.host) != NGX_OK) {
+        ngx_log_error(NGX_LOG_INFO, racf->log, 0,
+                "slot=%i, name=%V, ngx_rtmp_relay_create_connection: ngx_rtmp_relay_copy_str failure.",
+                ngx_process_slot, name);
+        goto clear;
+    }
+
     rctx->tag = target->tag;
     rctx->data = target->data;
+	rctx->h_port = (ngx_int_t)target->url.h_port;
 
 #define NGX_RTMP_RELAY_STR_COPY(to, from)                                     \
     if (ngx_rtmp_relay_copy_str(pool, &rctx->to, &target->from) != NGX_OK) {  \
@@ -555,6 +570,7 @@ ngx_rtmp_relay_create_connection(ngx_rtmp_conf_ctx_t *cctx, ngx_str_t* name,
         /* no need to destroy pool */
         return NULL;
     }
+	
     rs->app_conf = cctx->app_conf;
     rs->relay = 1;
     rctx->session = rs;
@@ -653,34 +669,32 @@ ngx_rtmp_relay_create_local_ctx(ngx_rtmp_session_t *s, ngx_str_t *name,
     return ctx;
 }
 
-ngx_rtmp_session_t *
-ngx_rtmp_relay_get_play(ngx_rtmp_session_t *s, ngx_str_t *name)
+ngx_rtmp_relay_ctx_t *
+ngx_rtmp_relay_get_publish(ngx_rtmp_session_t *s, u_char *name)
 {
     ngx_rtmp_relay_app_conf_t      *racf;
-    ngx_rtmp_relay_ctx_t          **cctx;
-    ngx_uint_t                      hash;
+    ngx_rtmp_relay_ctx_t           *ctx;
+	size_t                          len;
 
     racf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_relay_module);
     if (racf == NULL) {
         ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
-                "slot=%i, name=%V, ngx_rtmp_relay_get_play: ngx_rtmp_get_module_app_conf failure.",
+                "slot=%i, name=%s, ngx_rtmp_relay_get_publish: ngx_rtmp_get_module_app_conf failure.",
                 ngx_process_slot, name);
         return NULL;
     }
 
-    hash = ngx_hash_key(name->data, name->len);
-    cctx = &racf->ctx[hash % racf->nbuckets];
-    for (; *cctx; cctx = &(*cctx)->next) {
-        if ((*cctx)->name.len == name->len
-            && !ngx_memcmp(name->data, (*cctx)->name.data,
-                name->len))
-        {
-            break;
-        }
-    }
+	len = ngx_strlen(name);
+    ctx = racf->ctx[ngx_hash_key(name, len) % racf->nbuckets];
+    for (; ctx; ctx = ctx->next) {
 
-    if (*cctx && (*cctx)->play) {
-        return (*cctx)->play->session;
+		ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
+                "relay get_publish name: '%s' ctx->name: '%V'",
+                name, &ctx->name);
+
+        if (ngx_strncmp(name, ctx->name.data, ctx->name.len) == 0) {
+            return ctx->publish;
+        }
     }
 
     return NULL;
@@ -749,6 +763,10 @@ ngx_rtmp_relay_create(ngx_rtmp_session_t *s, ngx_str_t *name,
     publish_ctx->play = play_ctx;
     play_ctx->publish = publish_ctx;
     *cctx = publish_ctx;
+
+	ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
+            "slot=%i, name=%V, ngx_rtmp_relay_create: ok.",
+            ngx_process_slot, name);
 
     return NGX_OK;
 }
@@ -1581,6 +1599,10 @@ ngx_rtmp_relay_close(ngx_rtmp_session_t *s)
         ngx_del_timer(&ctx->push_evt);
     }
 
+	if (ctx->hold_evt.timer_set) {
+        ngx_del_timer(&ctx->hold_evt);
+    }
+
     for (cctx = &ctx->play; *cctx; cctx = &(*cctx)->next) {
         (*cctx)->publish = NULL;
         ngx_log_debug2(NGX_LOG_DEBUG_RTMP, (*cctx)->session->connection->log,
@@ -1998,7 +2020,6 @@ static ngx_int_t
 ngx_rtmp_relay_parse_tcurl(ngx_rtmp_session_t *s, u_char *tcurl)
 {
     if (!s || !tcurl){
-		
         return NGX_ERROR;
     }
 

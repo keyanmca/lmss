@@ -1236,10 +1236,10 @@ ngx_rtmp_stat_handler(ngx_http_request_t *r)
 		
         for(n = 0; n < cmcf->servers.nelts; ++n, ++cscf){
 			
-            for(j = 0; j < (*cscf)->server_names.nelts; j++){   
-				
-                ngx_rtmp_stat_server(r, lll, *cscf, &type, &app, &stream, &total_stat);      
-            }
+		    if ( (*cscf)->server_names.nelts > 0 ) {
+
+				ngx_rtmp_stat_server(r, lll, *cscf, &type, &app, &stream, &total_stat);
+		    }
         }
     }else{
     

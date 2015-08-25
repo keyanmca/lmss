@@ -161,7 +161,7 @@ struct ngx_connection_s {
 
     ngx_uint_t          requests;
 
-	unsigned            hls:1;
+	unsigned            hls:2;
     unsigned            buffered:8;
 
 	unsigned            hls_log_error:3;

@@ -13,7 +13,7 @@
 #include "ngx_rtmp_record_module.h"
 #include "ngx_rtmp_relay_module.h"
 #include "ngx_rtmp_live_module.h"
-
+#include "ngx_rtmp_notify_module.h"
 
 static ngx_rtmp_connect_pt                      next_connect;
 static ngx_rtmp_disconnect_pt                   next_disconnect;
@@ -23,8 +23,6 @@ static ngx_rtmp_close_stream_pt                 next_close_stream;
 static ngx_rtmp_record_done_pt                  next_record_done;
 
 
-static char *ngx_rtmp_notify_sp_ip(ngx_conf_t *cf, ngx_command_t *cmd,
-       void *conf);
 static char *ngx_rtmp_notify_on_srv_event(ngx_conf_t *cf, ngx_command_t *cmd,
        void *conf);
 static char *ngx_rtmp_notify_on_app_event(ngx_conf_t *cf, ngx_command_t *cmd,
@@ -69,6 +67,7 @@ enum {
 };
 
 enum {
+	NGX_RTMP_NOTIFT_SP_INTERNEL,
 	NGX_RTMP_NOTIFY_SP_TELECOM,
 	NGX_RTMP_NOTIFY_SP_UNICOM,
 	NGX_RTMP_NOTIFY_SP_MAX
@@ -81,8 +80,8 @@ typedef struct {
     ngx_msec_t                                  update_timeout;
     ngx_flag_t                                  update_strict;
     ngx_flag_t                                  relay_redirect;
-    ngx_uint_t                                  update_switch;
-    ngx_uint_t                                  update_fail_ignore;
+    ngx_flag_t                                  update_switch;
+    ngx_flag_t                                  update_fail_ignore;
 	ngx_str_t                                   socket_dir;
 } ngx_rtmp_notify_app_conf_t;
 
@@ -718,17 +717,20 @@ ngx_rtmp_notify_play_create(ngx_rtmp_session_t *s, void *arg,
     }
 
 	cscf = cmcf->servers.elts;
-    for (n = 0; n < cmcf->servers.nelts; ++n, ++cscf) {
+    for (n = 0; n < cmcf->servers.nelts; ++ n, ++ cscf) {
 
-	    for (j = 0; j < (*cscf)->server_names.nelts; j++) {
-			
-             names = (*cscf)->server_names.elts;
+		names = (*cscf)->server_names.elts;
+	    for (j = 0; j < (*cscf)->server_names.nelts; ++ j, ++ names) {
+
+			 ngx_log_error(NGX_LOG_ERR, s->connection->log, 0, "s->host_in is: %V, up_srv_name is: %V, name is: %V", 
+					&s->host_in, &names->up_srv_name, &names->name);
+
 			 if (0 == ngx_strncasecmp(s->host_in.data, names->up_srv_name.data, s->host_in.len) ||
-			     0 == ngx_strncasecmp(s->host_in.data, names->name.data, s->host_in.len)) {
+			     	0 == ngx_strncasecmp(s->host_in.data, names->name.data, s->host_in.len)) {
 
                 ngx_log_error(NGX_LOG_ERR, s->connection->log, 0, "s->host_in is: %V, up_srv_name is: %V, name is: %V", 
 					&s->host_in, &names->up_srv_name, &names->name);
-                found =1;
+                found = 1;
 				break;
 			 }
 		}
@@ -752,7 +754,7 @@ ngx_rtmp_notify_play_create(ngx_rtmp_session_t *s, void *arg,
         return NULL;
     }
 
-    name_len = ngx_strlen(v?v->name:s->name);
+    name_len = ngx_strlen(v?(const char *)v->name:(const char *)s->name);
     if (v)
         args_len = ngx_strlen(v->args);
     else if (s && s->args.len>0)
@@ -843,11 +845,11 @@ ngx_rtmp_notify_done_create(ngx_rtmp_session_t *s, void *arg,
 
     ngx_chain_t                    *pl;
     ngx_buf_t                      *b;
-    size_t                          cbname_len, name_len, args_len, srv_len;
+    size_t                          cbname_len =0, name_len=0, args_len=0, srv_len=0;
     ngx_rtmp_notify_ctx_t          *ctx;
 
-    ngx_rtmp_core_main_conf_t      *cmcf;
-    ngx_rtmp_server_name_t         *names;
+    ngx_rtmp_core_main_conf_t      *cmcf  = NULL;
+    ngx_rtmp_server_name_t         *names = NULL;
     ngx_rtmp_core_srv_conf_t       **cscf;
     size_t                         n, j;
     ngx_uint_t                     found = 0;
@@ -864,9 +866,9 @@ ngx_rtmp_notify_done_create(ngx_rtmp_session_t *s, void *arg,
 		cscf = cmcf->servers.elts;
 	    for (n = 0; n < cmcf->servers.nelts; ++n, ++cscf) {
 
-		    for (j = 0; j < (*cscf)->server_names.nelts; j++) {
+			names = (*cscf)->server_names.elts;
+		    for (j = 0; j < (*cscf)->server_names.nelts; j++, names++) {
 				
-	             names = (*cscf)->server_names.elts;
 				 if (0 == ngx_strncasecmp(s->host_in.data, names->name.data, s->host_in.len)) {
 
 	                found = 1;
@@ -884,7 +886,8 @@ ngx_rtmp_notify_done_create(ngx_rtmp_session_t *s, void *arg,
 
 	    	srv_len = names->up_srv_name.len;
 		} else {
-
+		
+			ngx_log_error(NGX_LOG_ERR, s->connection->log, 0,"ngx_rtmp_notify_done_create: not found cscf");
 			return NULL;
 		}
    	}else if (ngx_memcmp((char *)ds->cbname, "publish_done", ngx_strlen("publish_done")) == 0) {
@@ -994,7 +997,7 @@ ngx_rtmp_notify_update_create(ngx_rtmp_session_t *s, void *arg,
 {
     ngx_chain_t                    *pl;
     ngx_buf_t                      *b;
-    size_t                          name_len, args_len;
+    size_t                          name_len, args_len, srv_len;
     ngx_rtmp_notify_ctx_t          *ctx;
     ngx_str_t                       sfx;
 
@@ -1016,14 +1019,13 @@ ngx_rtmp_notify_update_create(ngx_rtmp_session_t *s, void *arg,
 
     name_len = ctx ? ngx_strlen(ctx->name) : 0;
     args_len = ctx ? ngx_strlen(ctx->args) : 0;
-
+    srv_len = s->host_in.len;
     b = ngx_create_temp_buf(pool,
                             sizeof("&call=update") + sfx.len +
                             sizeof("&time=") + NGX_TIME_T_LEN +
                             sizeof("&timestamp=") + NGX_INT32_LEN +
+                            sizeof("&srv=") + srv_len +
                             sizeof("&name=") + name_len * 3 +
-                            //sizeof("&flags=") + NGX_INT32_LEN + //added by Edward.Wu
-                            //sizeof("&updatetimeout=") + NGX_INT32_LEN + //added by Edward.Wu
                             1 + args_len);
     if (b == NULL) {
         return NULL;
@@ -1043,7 +1045,14 @@ ngx_rtmp_notify_update_create(ngx_rtmp_session_t *s, void *arg,
     b->last = ngx_cpymem(b->last, (u_char *) "&timestamp=",
                          sizeof("&timestamp=") - 1);
     b->last = ngx_sprintf(b->last, "%D", s->current_time);
-
+	
+	if (srv_len) {
+		
+		b->last = ngx_cpymem(b->last, (u_char *) "&srv=",
+							 sizeof("&srv=") - 1);
+		b->last = ngx_cpymem(b->last, (char *)s->host_in.data, s->host_in.len);
+	}
+	
     if (name_len) {
         b->last = ngx_cpymem(b->last, (u_char*) "&name=", sizeof("&name=") - 1);
         b->last = (u_char*) ngx_escape_uri(b->last, ctx->name, name_len,
@@ -1292,7 +1301,7 @@ ngx_rtmp_notify_parse_http_header(ngx_rtmp_session_t *s,
 
     return NGX_OK;
 }
-
+/*
 static ngx_int_t
 ngx_rtmp_notify_parse_http_body(ngx_rtmp_session_t *s,
         ngx_chain_t *in, ngx_str_t *body)
@@ -1333,7 +1342,7 @@ ngx_rtmp_notify_parse_http_body(ngx_rtmp_session_t *s,
 
     if (4 == matched )
     {
-        /* FIXME: not confider mutliple in buffers */
+        // FIXME: not confider mutliple in buffers 
         //p = (u_char *)ngx_strchr(p, '\n');
         body->data = p;
         body->len = in->buf->last - p;
@@ -1342,7 +1351,7 @@ ngx_rtmp_notify_parse_http_body(ngx_rtmp_session_t *s,
 
     return NGX_OK;
 }
-
+*/
 
 static void
 ngx_rtmp_notify_clear_flag(ngx_rtmp_session_t *s, ngx_uint_t flag)
@@ -1493,8 +1502,8 @@ next:
 
 
 static ngx_int_t
-ngx_rtmp_notify_json_decode(ngx_rtmp_session_t *s,
-		const char *jsonstr, ngx_addr_t *local, ngx_str_t *url, const ngx_str_t *app, const ngx_str_t *name)
+ngx_rtmp_notify_json_decode(ngx_rtmp_session_t *s, ngx_int_t cluster,
+		const char *jsonstr, ngx_addr_t *local, ngx_url_t *url, const ngx_str_t *app, const ngx_str_t *name)
 {
 	ngx_rtmp_notify_main_conf_t *nmcf;
 	struct json_object          *obj;
@@ -1516,7 +1525,17 @@ ngx_rtmp_notify_json_decode(ngx_rtmp_session_t *s,
 		goto finally;
 	}
 
-	const char *ip_list[NGX_RTMP_NOTIFY_SP_MAX] = {NULL, NULL};
+	int32_t h_port;
+	if (json_object_object_get_ex(root_obj, "h_port", &obj)) {
+		h_port = json_object_get_int(obj);
+		obj = NULL;
+	} else {
+		json_object_put(root_obj);
+		ret = NGX_ERROR;
+		goto finally;
+	}
+
+	const char *ip_list[NGX_RTMP_NOTIFY_SP_MAX] = {NULL, NULL, NULL};
 	int         ip_len_list[NGX_RTMP_NOTIFY_SP_MAX] = {0, 0};
 	if (json_object_object_get_ex(root_obj, "telecom_ip", &obj)) {
 		ip_list[NGX_RTMP_NOTIFY_SP_TELECOM] = json_object_get_string(obj);
@@ -1527,6 +1546,13 @@ ngx_rtmp_notify_json_decode(ngx_rtmp_session_t *s,
 	if (json_object_object_get_ex(root_obj, "unicom_ip", &obj)) {
 		ip_list[NGX_RTMP_NOTIFY_SP_UNICOM] = json_object_get_string(obj);
 		ip_len_list[NGX_RTMP_NOTIFY_SP_UNICOM] = json_object_get_string_len(obj);
+		obj = NULL;
+	}
+
+	
+	if (json_object_object_get_ex(root_obj, "internal_ip", &obj)) {
+		ip_list[NGX_RTMP_NOTIFT_SP_INTERNEL] = json_object_get_string(obj);
+		ip_len_list[NGX_RTMP_NOTIFT_SP_INTERNEL] = json_object_get_string_len(obj);
 		obj = NULL;
 	}
 
@@ -1544,19 +1570,24 @@ ngx_rtmp_notify_json_decode(ngx_rtmp_session_t *s,
 		}
 	}
 
-	// set local
-	ngx_memzero(local->sockaddr, sizeof(*local->sockaddr));
-	local_addr_in = (struct sockaddr_in *)local->sockaddr;
-	local_addr_in->sin_family      = AF_INET;
-	local_addr_in->sin_addr.s_addr = inet_addr(nmcf->iplist[xcom_sp_idx].data);
-
 	ngx_log_error(NGX_LOG_INFO, s->connection->log, 0,
             "slot=%i, json_decode: name='%V' app='%V' local_ip='%s' local_type='%d' remote_ip='%s' remote_type='%d'",
             ngx_process_slot, name, app, nmcf->iplist[xcom_sp_idx].data, xcom_sp_idx, ip_list[xcom_sp_idx], xcom_sp_idx);
 
-	// set remote
-	url->len = ngx_snprintf(url->data, url->len, "rtmp://%s:%d/%V/%V",
-		ip_list[xcom_sp_idx], port, app, name) - url->data;
+	if (cluster) {
+
+		// set local
+		ngx_memzero(local->sockaddr, sizeof(*local->sockaddr));
+		local_addr_in = (struct sockaddr_in *)local->sockaddr;
+		local_addr_in->sin_family      = AF_INET;
+		local_addr_in->sin_addr.s_addr = inet_addr((const char *)(nmcf->iplist[xcom_sp_idx].data));
+	}
+
+	url->h_port  = (in_port_t) h_port;
+	url->url.len = ngx_snprintf(url->url.data, url->url.len, "rtmp://%s:%d/%V/%V",
+			ip_list[cluster ? xcom_sp_idx : NGX_RTMP_NOTIFT_SP_INTERNEL], port, app, name) - url->url.data;
+	url->h_host.len = ngx_snprintf(url->h_host.data, url->h_host.len, "%s",
+			ip_list[cluster ? xcom_sp_idx : NGX_RTMP_NOTIFT_SP_INTERNEL]) - url->h_host.data;
 
 finally:
 	json_object_put(root_obj);
@@ -1576,8 +1607,10 @@ ngx_rtmp_notify_play_handle(ngx_rtmp_session_t *s,
 	ngx_url_t                  *u;
 	struct sockaddr             sockaddr;
 	ngx_addr_t                  local_addr;
-	u_char                      cluster_url[NGX_RTMP_MAX_NAME];
-	ngx_int_t                   cluster_url_len = NGX_RTMP_MAX_NAME;
+	u_char                      relay_url[NGX_RTMP_MAX_NAME];
+	ngx_int_t                   relay_url_len = NGX_RTMP_MAX_NAME;
+	u_char                      relay_ip[NGX_RTMP_MAX_NAME];
+	ngx_int_t                   relay_ip_len = NGX_RTMP_MAX_NAME;
 	u_char                      str_result[NGX_RTMP_MAX_NAME];
 	u_char                      str_action[NGX_RTMP_MAX_NAME];
 	u_char                      str_tcurl[NGX_RTMP_MAX_NAME];
@@ -1585,8 +1618,6 @@ ngx_rtmp_notify_play_handle(ngx_rtmp_session_t *s,
 	static ngx_str_t            result = ngx_string("result");
 	static ngx_str_t            action = ngx_string("action");
 	static ngx_str_t            tcurl  = ngx_string("tcurl");
-	ngx_chain_t                 evt_in;
-	ngx_buf_t                   evt_buf;
 
 	if ( !in ) {
 		ngx_log_error(NGX_LOG_WARN, s->connection->log, 0,
@@ -1647,7 +1678,7 @@ ngx_rtmp_notify_play_handle(ngx_rtmp_session_t *s,
 	target.relay_type  = s->relay_type;
 	target.app         = s->app;
 	tmp_name.data      = v?v->name:s->name;
-	tmp_name.len       = ngx_strlen(v?v->name:s->name);
+	tmp_name.len       = ngx_strlen(v?(const char *)v->name:(const char *)s->name);
 	if (s->relay_type == NGX_LOCAL_RELAY) {
 
 		ngx_int_t n = ngx_atoi(str_result, ngx_strlen(str_result));
@@ -1680,19 +1711,29 @@ ngx_rtmp_notify_play_handle(ngx_rtmp_session_t *s,
 		ngx_str_set(&target.page_url, "nginx-remote-pull");
 		ngx_memzero(&target.url, sizeof(target.url));
 		u = &target.url;
-		u->url.data = str_result + 7;
-		u->url.len = rc - 7;
+		u->url.data = relay_url;
+		u->url.len = relay_url_len;
+		u->h_host.data = relay_ip;
+		u->h_host.len = relay_ip_len;
 		u->default_port = 1935;
 		u->uri_part = 1;
 		u->no_resolve = 1; /* want ip here */
 
+		if (ngx_rtmp_notify_json_decode(s, 0, (const char *)str_result, target.local, u, &s->app, &tmp_name) != NGX_OK) {
+			goto next;
+		}
+
+		u->url.data += 7;
+		u->url.len  -= 7;
 	} else if (s->relay_type == NGX_CLUSTER_RELAY) {
 
 		ngx_str_set(&target.page_url, "nginx-cluster-pull");
 		ngx_memzero(&target.url, sizeof(target.url));
 		u = &target.url;
-		u->url.data = cluster_url;
-		u->url.len = cluster_url_len;
+		u->url.data = relay_url;
+		u->url.len = relay_url_len;
+		u->h_host.data = relay_ip;
+		u->h_host.len = relay_ip_len;
 		u->default_port = 1935;
 		u->uri_part = 1;
 		u->no_resolve = 1; /* want ip here */
@@ -1701,10 +1742,10 @@ ngx_rtmp_notify_play_handle(ngx_rtmp_session_t *s,
 		local_addr.sockaddr     = &sockaddr;
 		local_addr.socklen      = sizeof(sockaddr);
 		target.local            = &local_addr;
-		target.local->name.data = "test";
+		target.local->name.data = (void*)"test";
 		target.local->name.len  = ngx_strlen("test");
 
-		if (ngx_rtmp_notify_json_decode(s, str_result, target.local, &u->url, &s->app, &tmp_name) != NGX_OK) {
+		if (ngx_rtmp_notify_json_decode(s, 1, (const char *)str_result, target.local, u, &s->app, &tmp_name) != NGX_OK) {
 			goto next;
 		}
 
@@ -1718,34 +1759,16 @@ ngx_rtmp_notify_play_handle(ngx_rtmp_session_t *s,
 		goto next;
 	}
 
+	if (ngx_rtmp_relay_get_publish(s, v->name) != NULL) {
+		goto next;
+	}
+
 	ngx_rtmp_relay_pull(s, &tmp_name, &target);
 
 next:
-	rc = NGX_OK;
-	evt_in.buf = &evt_buf;
-	evt_buf.start = &rc;
-	evt_buf.end   = evt_buf.start + sizeof(rc);
-
-	if (ngx_rtmp_fire_event(s, NGX_RTMP_AUTH_DONE,
-                NULL, &evt_in) != NGX_OK)
-    {
-        ngx_rtmp_finalize_session(s);
-    }
-
 	return next_play(s, v);
 
 error:
-	rc = NGX_ERROR;
-	evt_in.buf = &evt_buf;
-	evt_buf.start = &rc;
-	evt_buf.end   = evt_buf.start + sizeof(rc);
-
-	if (ngx_rtmp_fire_event(s, NGX_RTMP_AUTH_DONE,
-                NULL, &evt_in) != NGX_OK)
-    {
-        ngx_rtmp_finalize_session(s);
-    }
-
 	ngx_rtmp_notify_clear_flag(s, NGX_RTMP_NOTIFY_PLAYING);
 	return NGX_ERROR;
 }
@@ -2251,7 +2274,7 @@ ngx_rtmp_notify_parse_url(ngx_conf_t *cf, ngx_str_t *url)
     return u;
 }
 
-
+/*
 static char *
 ngx_rtmp_notify_sp_ip(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -2283,7 +2306,7 @@ ngx_rtmp_notify_sp_ip(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     }
 
     return NGX_CONF_OK;
-}
+}*/
 
 
 static char *

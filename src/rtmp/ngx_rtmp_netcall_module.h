@@ -10,6 +10,7 @@
 
 #include <ngx_config.h>
 #include <ngx_core.h>
+#include <ngx_http.h>
 #include "ngx_rtmp.h"
 
 
@@ -42,6 +43,7 @@ typedef struct {
     ngx_rtmp_netcall_handle_pt      handle;
     void                           *arg;
     size_t                          argsize;
+	unsigned                        hls:1;
 } ngx_rtmp_netcall_init_t;
 
 

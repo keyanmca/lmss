@@ -95,7 +95,8 @@ ngx_rtmp_block(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     char                        *rv;
     ngx_uint_t                   m, mi, s;
     ngx_conf_t                   pcf;
-    ngx_array_t                  ports;
+    //modiry for warning
+	//ngx_array_t                  ports;
     ngx_rtmp_module_t           *module;
     ngx_rtmp_conf_ctx_t         *ctx;
     ngx_rtmp_core_srv_conf_t    *cscf, **cscfp;
@@ -645,93 +646,6 @@ ngx_rtmp_add_server(ngx_conf_t *cf, ngx_rtmp_core_srv_conf_t *cscf,
     return NGX_OK;
 }
 
-
-static ngx_int_t
-ngx_rtmp_add_ports(ngx_conf_t *cf, ngx_array_t *ports,
-    ngx_rtmp_listen_t *listen)
-{
-    in_port_t              p;
-    ngx_uint_t             i;
-    struct sockaddr       *sa;
-    struct sockaddr_in    *sin;
-    ngx_rtmp_conf_port_t  *port;
-    ngx_rtmp_conf_addr_t  *addr;
-#if (NGX_HAVE_INET6)
-    struct sockaddr_in6   *sin6;
-#endif
-
-    sa = (struct sockaddr *) &listen->sockaddr;
-
-    switch (sa->sa_family) {
-
-#if (NGX_HAVE_INET6)
-    case AF_INET6:
-        sin6 = (struct sockaddr_in6 *) sa;
-        p = sin6->sin6_port;
-        break;
-#endif
-
-    default: /* AF_INET */
-        sin = (struct sockaddr_in *) sa;
-        p = sin->sin_port;
-        break;
-    }
-
-    port = ports->elts;
-    for (i = 0; i < ports->nelts; i++) {
-        if (p == port[i].port && sa->sa_family == port[i].family) {
-
-            /* a port is already in the port list */
-
-            port = &port[i];
-            goto found;
-        }
-    }
-
-    /* add a port to the port list */
-
-    port = ngx_array_push(ports);
-    if (port == NULL) {
-        return NGX_ERROR;
-    }
-
-    port->family = sa->sa_family;
-    port->port = p;
-
-    if (ngx_array_init(&port->addrs, cf->temp_pool, 2,
-                       sizeof(ngx_rtmp_conf_addr_t))
-        != NGX_OK)
-    {
-        return NGX_ERROR;
-    }
-
-found:
-
-    addr = ngx_array_push(&port->addrs);
-    if (addr == NULL) {
-        return NGX_ERROR;
-    }
-
-    addr->sockaddr = (struct sockaddr *) &listen->sockaddr;
-    addr->socklen = listen->socklen;
-    addr->ctx = listen->ctx;
-    addr->bind = listen->bind;
-    addr->wildcard = listen->wildcard;
-    addr->so_keepalive = listen->so_keepalive;
-    addr->proxy_protocol = listen->proxy_protocol;
-#if (NGX_HAVE_KEEPALIVE_TUNABLE)
-    addr->tcp_keepidle = listen->tcp_keepidle;
-    addr->tcp_keepintvl = listen->tcp_keepintvl;
-    addr->tcp_keepcnt = listen->tcp_keepcnt;
-#endif
-#if (NGX_HAVE_INET6 && defined IPV6_V6ONLY)
-    addr->ipv6only = listen->ipv6only;
-#endif
-
-    return NGX_OK;
-}
-
-
 static char *
 ngx_rtmp_optimize_servers(ngx_conf_t *cf, ngx_rtmp_core_main_conf_t *cmcf, ngx_array_t *ports)
 {
@@ -985,14 +899,16 @@ ngx_rtmp_server_names(ngx_conf_t *cf, ngx_rtmp_core_main_conf_t *cmcf,
     for (s = 0; s < addr->servers.nelts; s++) {
 
         name = cscfp[s]->server_names.elts;
-        name->up_srv_name = cscfp[s]->up_server_name;
 
         for (n = 0; n < cscfp[s]->server_names.nelts; n++) {
+			
+			 name[n].up_srv_name = cscfp[s]->up_server_name;
 
             rc = ngx_hash_add_key(&ha, &name[n].name, name[n].server,
                                   NGX_HASH_WILDCARD_KEY);
             rc1 = ngx_hash_add_key(&ha, &name[n].up_srv_name, name[n].server,
                                   NGX_HASH_WILDCARD_KEY);
+
 			
             if (rc == NGX_ERROR || rc1 == NGX_ERROR) {
                 return NGX_ERROR;
@@ -1016,11 +932,7 @@ ngx_rtmp_server_names(ngx_conf_t *cf, ngx_rtmp_core_main_conf_t *cmcf,
                               "conflicting server name \"%V\" on %s, ignored",
                               &name[n].name, addr->opt.sockaddr);
             }
-            if (rc1 == NGX_BUSY) {
-                ngx_log_error(NGX_LOG_EMERG, cf->log, 0,
-                              "conflicting up_server_name \"%V\" on %s, ignored",
-                              &name[n].up_srv_name, addr->opt.sockaddr);
-            }
+
         }
     }
 
@@ -1101,7 +1013,8 @@ ngx_rtmp_init_listening(ngx_conf_t *cf, ngx_rtmp_conf_port_t *port)
 	if (port->ports.elts == NULL) {
 		if (ngx_array_init(&port->ports, cf->pool, port->addrs.nelts,
 					sizeof(ngx_rtmp_port_t)) != NGX_OK) {
-			return NULL;
+			//modify for warning
+			return NGX_ERROR;
 		}
 	}
 	
@@ -1239,7 +1152,8 @@ ngx_rtmp_add_listen(ngx_conf_t *cf, ngx_rtmp_core_srv_conf_t *cscf,
 					sizeof(ngx_rtmp_conf_port_t))
 	        != NGX_OK)
 	    {
-	        return NULL;
+			//modify for warning
+	        return NGX_ERROR;
 	    }
 	}
 
@@ -1291,7 +1205,7 @@ ngx_rtmp_add_listen(ngx_conf_t *cf, ngx_rtmp_core_srv_conf_t *cscf,
 
     return ngx_rtmp_add_address(cf, cscf, port, lsopt);
 }
-
+/*
 static ngx_int_t
 ngx_rtmp_init_process(ngx_cycle_t *cycle)
 {
@@ -1299,4 +1213,4 @@ ngx_rtmp_init_process(ngx_cycle_t *cycle)
     ngx_queue_init(&ngx_rtmp_init_queue);
 #endif
     return NGX_OK;
-}
+}*/

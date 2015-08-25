@@ -45,6 +45,10 @@ typedef struct ngx_rtmp_relay_ctx_s ngx_rtmp_relay_ctx_t;
 struct ngx_rtmp_relay_ctx_s {
     ngx_str_t                       name;
     ngx_str_t                       url;
+	ngx_str_t                       host;
+	ngx_str_t                       relay_uri;
+	ngx_str_t                       h_host;
+	ngx_int_t                       h_port;
     ngx_log_t                       log;
     ngx_rtmp_session_t             *session;
     ngx_rtmp_relay_ctx_t           *publish;
@@ -79,6 +83,7 @@ ngx_int_t ngx_rtmp_relay_pull(ngx_rtmp_session_t *s, ngx_str_t *name,
 ngx_int_t ngx_rtmp_relay_push(ngx_rtmp_session_t *s, ngx_str_t *name,
                               ngx_rtmp_relay_target_t *target);
 ngx_int_t ngx_rtmp_relay_relaying(ngx_rtmp_session_t *s, ngx_str_t *name);
+ngx_rtmp_relay_ctx_t * ngx_rtmp_relay_get_publish(ngx_rtmp_session_t *s, u_char *name);
 
 
 #endif /* _NGX_RTMP_RELAY_H_INCLUDED_ */

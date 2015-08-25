@@ -32,7 +32,7 @@ ngx_is_valid_ip( u_char* str )
         p = (u_char *)ngx_strchr(p1, '.');
 
         ngx_memset(temp, 0, NGX_RTMP_MAX_NAME);
-        len = (size_t)(p ? p - p1 : ngx_strlen(p1));
+        len = (size_t)(p ? p - p1 : (int)ngx_strlen(p1));
         ngx_memcpy(temp, p1, len);
         a = ngx_atoi(temp, len);
 	    if (a < 0 || a > 255){

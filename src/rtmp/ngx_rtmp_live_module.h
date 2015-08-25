@@ -42,7 +42,7 @@ struct ngx_rtmp_live_ctx_s {
     unsigned                            publishing:1;
     unsigned                            silent:1;
     unsigned                            paused:1;
-	unsigned                            hls:1;
+	unsigned                            hls:2;
 };
 
 
@@ -94,6 +94,7 @@ typedef struct {
     ngx_msec_t                          buflen;
     ngx_pool_t                         *pool;
     ngx_rtmp_live_stream_t             *free_streams;
+	ngx_flag_t                          check_timeout;
 } ngx_rtmp_live_app_conf_t;
 
 

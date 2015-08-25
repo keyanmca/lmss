@@ -633,6 +633,11 @@ ngx_rtmp_cmd_play_init(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 static ngx_int_t
 ngx_rtmp_cmd_play(ngx_rtmp_session_t *s, ngx_rtmp_play_t *v)
 {
+	if (ngx_rtmp_fire_event(s, NGX_RTMP_AUTH_DONE, NULL, NULL) != NGX_OK)
+    {
+        ngx_rtmp_finalize_session(s);
+    }
+
     return NGX_OK;
 }
 
