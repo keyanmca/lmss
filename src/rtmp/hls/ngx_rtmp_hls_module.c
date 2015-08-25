@@ -934,29 +934,79 @@ ngx_rtmp_hls_open_fragment(ngx_rtmp_session_t *s, uint64_t ts,
 static void
 ngx_rtmp_hls_restore_m3u8(ngx_rtmp_session_t *s)
 {
-    ngx_fd_t                        fd;
     ngx_rtmp_hls_ctx_t             *ctx;
     ngx_rtmp_hls_app_conf_t        *hacf;
+    ngx_file_t                     file, file_bak;
+    ngx_file_info_t                fi;
+    size_t                         file_size;
+    char                           *p_filebuff;
 
-	hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
+    hacf = ngx_rtmp_get_module_app_conf(s, ngx_rtmp_hls_module);
     ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
 
-    fd = ngx_open_file(ctx->playlist.data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
+    /*open index.m3u8 and read file to buffer*/
+    ngx_str_set(&file.name, "index.m3u8");
+    file.log = s->connection->log;
+    file.fd= ngx_open_file(ctx->playlist.data, NGX_FILE_RDONLY, NGX_FILE_OPEN, 0);
 
-    if (fd == NGX_INVALID_FILE) {
+    if (file.fd == NGX_INVALID_FILE) {
+
+    	ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
+    		"ngx_rtmp_hls_restore_m3u8: file %s is not exist", ctx->playlist.data);
         return;
     }
 
-	ngx_close_file(fd);
+    /*get file info and size*/
+    if (ngx_link_info((char *)ctx->playlist.data, &fi) == NGX_FILE_ERROR) {
 
-	if (ngx_rtmp_hls_rename_file(ctx->playlist.data, ctx->playlist_bak.data)
-        == NGX_FILE_ERROR)
-    {
+            ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
+                    "ngx_rtmp_hls_restore_m3u8: get file %s info failed", ctx->playlist.data);
+    }
+    file_size = ngx_file_size(&fi);
+    if (file_size <= 0) {
+
         ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
-                      "hls: rename failed: '%V'->'%V'",
-                      &ctx->playlist, &ctx->playlist_bak);
+            "ngx_rtmp_hls_restore_m3u8: get %s size filed", ctx->playlist.data);
         return;
     }
+	
+    /*malloc space for index.m3u8*/
+    p_filebuff = ngx_palloc(s->connection->pool, file_size + 1);
+    if (p_filebuff == NULL) {
+
+        ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
+            "ngx_rtmp_hls_restore_m3u8: allocate index.m3u8 file buffer failed");
+         return;
+    }
+	
+    /*read index.m3u8*/
+    if (ngx_read_file(&file, (u_char *)p_filebuff, file_size, 0) < 0) {
+
+        ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
+            "ngx_rtmp_hls_restore_m3u8: read %s file failed", ctx->playlist.data);
+        ngx_close_file(file.fd);
+        return;
+    }
+    ngx_close_file(file.fd);
+    p_filebuff[file_size] = 0;
+
+    /*create and write  index.m3u8.bak file*/
+    ngx_str_set(&file_bak.name, "index.m3u8.bak");
+    file_bak.log = s->connection->log;
+	
+    file_bak.fd = ngx_open_file((char *)ctx->playlist_bak.data, NGX_FILE_WRONLY,
+    	NGX_FILE_TRUNCATE, NGX_FILE_DEFAULT_ACCESS);
+	
+    if (file_bak.fd == NGX_INVALID_FILE) {
+		
+    	ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
+    		"ngx_rtmp_hls_restore_m3u8: open file %s failed", ctx->playlist_bak.data);
+        return;
+    }
+    ngx_write_file(&file_bak, (u_char *)p_filebuff, file_size, 0);
+
+    ngx_close_file(file_bak.fd);
+
 }
 
 
