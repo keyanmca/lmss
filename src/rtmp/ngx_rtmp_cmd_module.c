@@ -764,6 +764,19 @@ ngx_rtmp_cmd_disconnect_init(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
 
 
 static ngx_int_t
+ngx_rtmp_cmd_av_sent(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
+                        ngx_chain_t *in)
+{
+    if (ngx_rtmp_fire_event(s, NGX_RTMP_AV_SENT, NULL, NULL) != NGX_OK)
+    {
+        ngx_rtmp_finalize_session(s);
+    }
+
+    return NGX_OK;
+}
+
+
+static ngx_int_t
 ngx_rtmp_cmd_disconnect(ngx_rtmp_session_t *s)
 {
     return ngx_rtmp_delete_stream(s, NULL);
@@ -901,6 +914,20 @@ ngx_rtmp_cmd_postconfiguration(ngx_conf_t *cf)
     }
 
     *h = ngx_rtmp_cmd_disconnect_init;
+
+	h = ngx_array_push(&cmcf->events[NGX_RTMP_MSG_AUDIO]);
+	if (h == NULL) {
+        return NGX_ERROR;
+    }
+
+    *h = ngx_rtmp_cmd_av_sent;
+
+	h = ngx_array_push(&cmcf->events[NGX_RTMP_MSG_VIDEO]);
+	if (h == NULL) {
+        return NGX_ERROR;
+    }
+
+    *h = ngx_rtmp_cmd_av_sent;
 
     /* register AMF callbacks */
 

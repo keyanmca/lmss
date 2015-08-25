@@ -120,7 +120,8 @@ typedef struct {
 #define NGX_RTMP_DISCONNECT             NGX_RTMP_MSG_MAX + 2
 #define NGX_RTMP_HANDSHAKE_DONE         NGX_RTMP_MSG_MAX + 3
 #define NGX_RTMP_AUTH_DONE              NGX_RTMP_MSG_MAX + 4
-#define NGX_RTMP_MAX_EVENT              NGX_RTMP_MSG_MAX + 5
+#define NGX_RTMP_AV_SENT                NGX_RTMP_MSG_MAX + 5
+#define NGX_RTMP_MAX_EVENT              NGX_RTMP_MSG_MAX + 6
 
 
 /* RMTP control message types */
