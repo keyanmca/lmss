@@ -555,7 +555,7 @@ ngx_rtmp_hls_write_playlist(ngx_rtmp_session_t *s)
                          f->discont ? "#EXT-X-DISCONTINUITY\n" : "",
                          f->duration, &(hacf->base_url), &name_part, (char *)dot, (char *)sep, f->id);
 
-        ngx_log_debug5(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
+        ngx_log_debug6(NGX_LOG_DEBUG_RTMP, s->connection->log, 0,
                        "hls: fragment frag=%uL, n=%ui/%ui, duration=%.3f, "
                        "discont=%i, id=%uL",
                        ctx->frag, i + 1, ctx->nfrags, f->duration, f->discont, f->id);
