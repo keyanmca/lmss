@@ -49,6 +49,15 @@ typedef struct {
 
 void ngx_strlow(u_char *dst, u_char *src, size_t n);
 
+#define ngx_strdup(pool, src, dst) \
+	do { \
+		(dst)->data = ngx_palloc((pool), (src)->len); \
+		if ((dst)->data == NULL) { \
+			return NGX_ERROR; \
+		} \
+		(dst)->len = (src)->len; \
+		ngx_memcpy((dst)->data, (src)->data, (src)->len); \
+	} while(0)
 
 #define ngx_strncmp(s1, s2, n)  strncmp((const char *) s1, (const char *) s2, n)
 

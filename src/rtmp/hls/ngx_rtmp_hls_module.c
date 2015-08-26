@@ -959,14 +959,14 @@ ngx_rtmp_hls_restore_m3u8(ngx_rtmp_session_t *s)
     /*get file info and size*/
     if (ngx_link_info((char *)ctx->playlist.data, &fi) == NGX_FILE_ERROR) {
 
-            ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
-                    "ngx_rtmp_hls_restore_m3u8: get file %s info failed", ctx->playlist.data);
+        ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
+        	"ngx_rtmp_hls_restore_m3u8: get file %s info failed", ctx->playlist.data);
     }
     file_size = ngx_file_size(&fi);
     if (file_size <= 0) {
 
         ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
-            "ngx_rtmp_hls_restore_m3u8: get %s size filed", ctx->playlist.data);
+        	"ngx_rtmp_hls_restore_m3u8: get %s size filed", ctx->playlist.data);
         return;
     }
 	
@@ -983,7 +983,7 @@ ngx_rtmp_hls_restore_m3u8(ngx_rtmp_session_t *s)
     if (ngx_read_file(&file, (u_char *)p_filebuff, file_size, 0) < 0) {
 
         ngx_log_error(NGX_LOG_ERR, s->connection->log, ngx_errno,
-            "ngx_rtmp_hls_restore_m3u8: read %s file failed", ctx->playlist.data);
+        	"ngx_rtmp_hls_restore_m3u8: read %s file failed", ctx->playlist.data);
         ngx_close_file(file.fd);
         return;
     }
@@ -2335,7 +2335,7 @@ next:
 
 
 static ngx_int_t
-ngx_rtmp_hls_cleanup_dir(ngx_str_t *ppath, ngx_msec_t playlen, ngx_flag_t continues)
+ngx_rtmp_hls_cleanup_dir(ngx_str_t *ppath, ngx_msec_t playlen)
 {
     ngx_dir_t               dir;
     time_t                  mtime, max_age;
@@ -2405,7 +2405,7 @@ ngx_rtmp_hls_cleanup_dir(ngx_str_t *ppath, ngx_msec_t playlen, ngx_flag_t contin
 
         if (ngx_de_is_dir(&dir)) {
 
-            if (ngx_rtmp_hls_cleanup_dir(&spath, playlen, continues) == 0) {
+            if (ngx_rtmp_hls_cleanup_dir(&spath, playlen) == 0) {
                 ngx_log_debug1(NGX_LOG_DEBUG_RTMP, ngx_cycle->log, 0,
                                "hls: cleanup dir '%V'", &name);
 
@@ -2444,11 +2444,7 @@ ngx_rtmp_hls_cleanup_dir(ngx_str_t *ppath, ngx_msec_t playlen, ngx_flag_t contin
                                     name.data[name.len - 2] == 'u' &&
                                     name.data[name.len - 1] == '8')
         {
-            if ( continues ) {
-                continue;   // save .m3u8 file for hls_continues parameters support.
-            } else {
-                max_age = playlen / 1000;
-            }
+            max_age = playlen / 1000;
 
         } else {
             ngx_log_debug1(NGX_LOG_DEBUG_RTMP, ngx_cycle->log, 0,
@@ -2481,7 +2477,7 @@ ngx_rtmp_hls_cleanup(void *data)
 {
     ngx_rtmp_hls_cleanup_t *cleanup = data;
 
-    ngx_rtmp_hls_cleanup_dir(&cleanup->path, cleanup->playlen, cleanup->continuous);
+    ngx_rtmp_hls_cleanup_dir(&cleanup->path, cleanup->playlen);
 
     return cleanup->playlen / 500;
 }
@@ -2763,8 +2759,7 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t pt, ngx_str_t host
 	struct sockaddr_in    *sin;
     ngx_rtmp_in_addr_t    *addr;
 	ngx_int_t              unix_socket;
-	ngx_http_core_loc_conf_t *clcf;
-	u_char              *colon;
+	u_char                *colon;
 #if (NGX_HAVE_INET6)
     struct sockaddr_in6   *sin6;
     ngx_rtmp_in6_addr_t   *addr6;
@@ -2869,11 +2864,6 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t pt, ngx_str_t host
 	r->read_event_handler = ngx_http_test_reading;
 	r->keepalived_handler = ngx_rtmp_hls_close_keepalived;
 
-	clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
-	if (clcf == NULL) {
-        return NGX_ERROR;
-    }
-
 	s->auto_pushed = unix_socket;
 
     s->hls = pt;
@@ -2887,25 +2877,20 @@ ngx_rtmp_hls_init_connection(ngx_http_request_t *r, ngx_int_t pt, ngx_str_t host
 		host.len = host.data - colon;
 	}
 
-	s->host_in.data = ngx_palloc(c->hls_pool, host.len);
-	if (s->host_in.data == NULL) {
-		return NGX_ERROR;
-	}
-	s->host_in.len = host.len;
-	ngx_memcpy(s->host_in.data, host.data, host.len);
-
 	ngx_memzero(s->name, sizeof(s->name));
 	ngx_memcpy(s->name, stream_name->data, stream_name->len);
 	s->app  = cacf->name;
-	s->args = r->args;
 
 	ngx_str_set(&s->flashver, "HLS 17,0,0,188");
-	s->swf_url  = r->headers_in.user_agent->value;
-	s->page_url = r->headers_in.user_agent->value;
+	ngx_strdup(c->hls_pool, &r->headers_in.user_agent->value, &s->swf_url);
+	ngx_strdup(c->hls_pool, &r->headers_in.user_agent->value, &s->page_url);
+	ngx_strdup(c->hls_pool, &host, &s->host_in);
+	ngx_strdup(c->hls_pool, &r->args, &s->args);
+
 	s->tc_url.len = ngx_strlen("http://") + r->headers_in.host->value.len + s->app.len + 1;
 	s->tc_url.data = ngx_palloc(c->hls_pool, s->tc_url.len);
 	*ngx_snprintf(s->tc_url.data, s->tc_url.len, "http://%V/%V",
-		&r->headers_in.host->value, &s->app) = 0;
+			&r->headers_in.host->value, &s->app) = 0;
 
 	ctx = ngx_rtmp_get_module_ctx(s, ngx_rtmp_hls_module);
     if (ctx == NULL) {
@@ -3142,6 +3127,8 @@ ngx_rtmp_hls_close_keepalived(ngx_http_request_t *r)
 {
 	ngx_rtmp_session_t          *s;
 
+	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "hls close keepalived");
+
 	s = r->connection->hls_data;
 	s->r = NULL;
 
@@ -3176,7 +3163,7 @@ ngx_rtmp_hls_auth_done(ngx_rtmp_session_t *s, ngx_rtmp_header_t *h,
         return NGX_OK;
     }
 
-	ngx_log_error(NGX_LOG_INFO, r->connection->log, 0, "http_hls auth done");
+	ngx_log_error(NGX_LOG_INFO, s->connection->log, 0, "http_hls auth done");
 
 	opened = ngx_rtmp_hls_open_file(r, &out);
 
